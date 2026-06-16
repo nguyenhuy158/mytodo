@@ -16,7 +16,7 @@ FROM base AS builder
 ARG NEXT_PUBLIC_TASK_POLLING_MS=15000
 ENV NEXT_PUBLIC_TASK_POLLING_MS=$NEXT_PUBLIC_TASK_POLLING_MS
 COPY --link --from=deps /app/node_modules ./node_modules
-COPY --link package.json pnpm-lock.yaml next.config.ts postcss.config.mjs tsconfig.json next-env.d.ts ./
+COPY --link package.json pnpm-lock.yaml next.config.ts postcss.config.mjs tsconfig.json ./
 COPY --link public ./public
 COPY --link src ./src
 RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
