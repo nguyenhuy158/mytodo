@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Mono, Space_Grotesk } from "next/font/google";
+import { auth } from "@/auth";
 import { AppToaster } from "@/components/app-toaster";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import "./globals.css";
@@ -20,18 +21,20 @@ export const metadata: Metadata = {
   description: "Realtime polling dashboard for Google Sheet tasks.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html
       lang="vi"
       className={`${spaceGrotesk.variable} ${dmMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <SiteHeader />
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <SiteHeader userEmail={session?.user?.email ?? null} />
         <div className="flex-1">{children}</div>
         <SiteFooter />
         <AppToaster />

@@ -4,6 +4,8 @@ import {
   SheetConfigError,
   updateSheetTask,
 } from "@/lib/google-sheets";
+import { auth } from "@/auth";
+import { isEmailAllowed } from "@/lib/auth-config";
 import type {
   TaskCreateInput,
   TaskPriority,
@@ -39,6 +41,12 @@ class RequestValidationError extends Error {
 
 export async function GET(request: NextRequest) {
   try {
+    const authError = await getTaskAuthErrorResponse();
+
+    if (authError) {
+      return authError;
+    }
+
     const forceRefresh = request.nextUrl.searchParams.get("force") === "1";
     const payload = await getSheetTasks({ forceRefresh });
 
@@ -50,6 +58,12 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const authError = await getTaskAuthErrorResponse();
+
+    if (authError) {
+      return authError;
+    }
+
     const input = parseTaskUpdateInput(await readJson(request));
 
     await updateSheetTask(input);
@@ -64,6 +78,12 @@ export async function PATCH(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authError = await getTaskAuthErrorResponse();
+
+    if (authError) {
+      return authError;
+    }
+
     const input = parseTaskCreateInput(await readJson(request));
 
     await createSheetTask(input);
@@ -83,6 +103,48 @@ function taskResponse(payload: Awaited<ReturnType<typeof getSheetTasks>>) {
       "X-Task-Cache": payload.meta.cache.status,
     },
   });
+}
+
+async function getTaskAuthErrorResponse() {
+  const session = await auth();
+  const email = session?.user?.email;
+
+  if (!email) {
+    return taskAuthErrorResponse(
+      "AUTH_REQUIRED",
+      "Bạn cần đăng nhập bằng Google.",
+      401,
+    );
+  }
+
+  if (!isEmailAllowed(email)) {
+    return taskAuthErrorResponse(
+      "AUTH_FORBIDDEN",
+      "Email này không được phép xem dữ liệu.",
+      403,
+    );
+  }
+
+  return null;
+}
+
+function taskAuthErrorResponse(code: string, message: string, status: number) {
+  return Response.json(
+    {
+      error: {
+        code,
+        message,
+      },
+      tasks: [],
+      meta: null,
+    },
+    {
+      status,
+      headers: {
+        "Cache-Control": "private, no-store",
+      },
+    },
+  );
 }
 
 function taskErrorResponse(error: unknown, action: "read" | "write") {

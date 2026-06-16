@@ -31,6 +31,11 @@ GOOGLE_SHEET_GID=689856921
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 NEXT_PUBLIC_TASK_POLLING_MS=15000
 TASK_CACHE_TTL_MS=60000
+AUTH_SECRET=replace-with-a-random-32-byte-secret
+AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
+AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
+AUTH_DEBUG=false
 ```
 
 Optional:
@@ -48,6 +53,32 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----
 ```
 
 Do not expose credentials in client code. Browser views only call `/api/tasks`.
+
+## Google Login Setup
+
+1. Create a Google OAuth Client ID in Google Cloud.
+2. Add this local redirect URI:
+
+```txt
+http://localhost:3000/api/auth/callback/google
+```
+
+If the dev server uses another port, for example `3001`, replace `3000` with
+that port in the Google OAuth redirect URI.
+
+3. Put the OAuth client values in `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`.
+4. Generate `AUTH_SECRET`:
+
+```bash
+openssl rand -base64 32
+```
+
+5. Put allowed viewer emails in `AUTH_ALLOWED_EMAILS`, separated by commas.
+
+If `AUTH_ALLOWED_EMAILS` is empty, the app denies all users.
+
+Set `AUTH_DEBUG=true` temporarily when debugging OAuth callback issues. Keep it
+`false` in normal production runs.
 
 ## Google Cloud Setup
 
@@ -71,6 +102,7 @@ This checks:
 - `.env.local` exists.
 - required env values are present.
 - `GOOGLE_APPLICATION_CREDENTIALS` points to an existing file.
+- `AUTH_ALLOWED_EMAILS` contains at least one email.
 
 ## Run Local Dev
 

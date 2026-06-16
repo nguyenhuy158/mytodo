@@ -8,16 +8,19 @@ WORKDIR /app
 RUN corepack enable
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml ./
+COPY --link package.json pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   corepack pnpm install --frozen-lockfile
 
 FROM base AS builder
 ARG NEXT_PUBLIC_TASK_POLLING_MS=15000
 ENV NEXT_PUBLIC_TASK_POLLING_MS=$NEXT_PUBLIC_TASK_POLLING_MS
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN corepack pnpm run build
+COPY --link --from=deps /app/node_modules ./node_modules
+COPY --link package.json pnpm-lock.yaml next.config.ts postcss.config.mjs tsconfig.json next-env.d.ts ./
+COPY --link public ./public
+COPY --link src ./src
+RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
+  corepack pnpm run build
 
 FROM node:22-alpine AS runner
 ENV HOSTNAME=0.0.0.0
@@ -28,7 +31,7 @@ WORKDIR /app
 
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
-COPY --from=builder /app/public ./public
+COPY --link --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 

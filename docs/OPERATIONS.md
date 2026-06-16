@@ -23,7 +23,9 @@ From terminal:
 curl "http://localhost:3000/api/tasks?force=1"
 ```
 
-If Next.js is running on another port, replace `3000`.
+If Next.js is running on another port, replace `3000`. This endpoint now
+requires an authenticated browser session; unauthenticated terminal calls should
+return `401`.
 
 Expected response includes:
 
@@ -90,6 +92,19 @@ Run:
 ```bash
 make env-check
 ```
+
+### Cannot Login With Google
+
+Likely causes:
+
+- `AUTH_GOOGLE_ID` missing or wrong
+- `AUTH_GOOGLE_SECRET` missing or wrong
+- `AUTH_SECRET` missing
+- Google OAuth callback URL not configured
+- signed-in email is not listed in `AUTH_ALLOWED_EMAILS`
+
+For short-lived debugging, set `AUTH_DEBUG=true` and inspect server logs. Turn it
+back to `false` after the issue is fixed.
 
 ### `File không phải Google Sheet hoặc XLSX`
 

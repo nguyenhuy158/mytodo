@@ -8,6 +8,7 @@
 - Tailwind CSS v4
 - SWR for polling
 - Google APIs for Sheets/Drive access
+- Auth.js / NextAuth for Google login
 - ExcelJS for Office `.xlsx` parsing
 - Recharts for charts
 - Sonner for toasts
@@ -22,7 +23,9 @@
 | `/tasks` | Paginated task board | `src/app/tasks/page.tsx` |
 | `/kanban` | Kanban board grouped by status | `src/app/kanban/page.tsx` |
 | `/week` | Current week deadline board | `src/app/week/page.tsx` |
+| `/login` | Google login and access-denied state | `src/app/login/page.tsx` |
 | `/api/tasks` | Server API for tasks | `src/app/api/tasks/route.ts` |
+| `/api/auth/[...nextauth]` | Auth.js Google OAuth handlers | `src/app/api/auth/[...nextauth]/route.ts` |
 
 ## Main Components
 
@@ -52,6 +55,13 @@ Browser route
 ```
 
 Client code never reads Google credentials. All Google API calls happen on the server.
+
+## Access Control
+
+- `src/proxy.ts` redirects unauthenticated page requests to `/login`.
+- `/api/tasks` returns `401` or `403` JSON instead of task data when the session is missing or the email is not allowed.
+- Allowed viewer emails come from `AUTH_ALLOWED_EMAILS`.
+- Google Sheet service-account credentials stay server-side and separate from Google login.
 
 Write-back flow:
 

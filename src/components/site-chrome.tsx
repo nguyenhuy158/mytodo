@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { mutate } from "swr";
@@ -12,6 +13,10 @@ import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
 const LAST_NAV_STORAGE_KEY = "mytodo:last-nav";
+
+type SiteHeaderProps = {
+  userEmail?: string | null;
+};
 
 type NavItem = {
   href: string;
@@ -48,6 +53,14 @@ const saveLastNavHref = (href: string) => {
   }
 };
 
+const clearLastNavHref = () => {
+  try {
+    window.localStorage.removeItem(LAST_NAV_STORAGE_KEY);
+  } catch {
+    // Local storage may be unavailable in restricted browser modes.
+  }
+};
+
 const fetchTasks = async (url: string): Promise<TasksPayload> => {
   const response = await fetch(url, { cache: "no-store" });
   const payload = await response.json();
@@ -61,13 +74,15 @@ const fetchTasks = async (url: string): Promise<TasksPayload> => {
   return payload;
 };
 
-export function SiteHeader() {
+export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const pathname = usePathname();
   const navLinkRefs = useRef(new Map<string, HTMLAnchorElement>());
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const activeNavHref = getActiveNavHref(pathname);
+  const isAuthPage = pathname === "/login";
 
   useEffect(() => {
     const currentNavHref = activeNavHref ?? readLastNavHref();
@@ -153,6 +168,43 @@ export function SiteHeader() {
     await createPromise;
   };
 
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    clearLastNavHref();
+    await mutate(TASKS_API_URL, undefined, { revalidate: false });
+    await signOut({ callbackUrl: "/login" });
+  };
+
+  if (isAuthPage) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-white/70 bg-[#f7f1e8]/90 px-4 py-3 shadow-sm shadow-slate-900/5 backdrop-blur-xl sm:px-8 lg:px-10">
+        <div className="mx-auto flex w-full max-w-[95rem] items-center justify-between gap-3">
+          <Link
+            href="/"
+            className="text-lg font-black tracking-[-0.06em] text-slate-950 sm:text-xl"
+          >
+            2026 Tasks
+          </Link>
+          {userEmail ? (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/70 px-4 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 disabled:cursor-wait disabled:opacity-70"
+            >
+              {isSigningOut ? (
+                <AppIcon name="loader" className="size-4 animate-spin" />
+              ) : (
+                <AppIcon name="logOut" className="size-4" />
+              )}
+              {isSigningOut ? "Đang thoát..." : "Đăng xuất"}
+            </button>
+          ) : null}
+        </div>
+      </header>
+    );
+  }
+
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-white/70 bg-[#f7f1e8]/90 px-4 py-3 shadow-sm shadow-slate-900/5 backdrop-blur-xl sm:px-8 lg:px-10">
@@ -198,6 +250,27 @@ export function SiteHeader() {
             })}
           </nav>
           <div className="hidden items-center gap-2 lg:flex">
+            {userEmail ? (
+              <div className="flex items-center gap-2">
+                <div className="rounded-full border border-white bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
+                  <span className="block max-w-44 truncate">{userEmail}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/70 px-4 text-sm font-black text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100 disabled:cursor-wait disabled:opacity-70"
+                  aria-label="Đăng xuất"
+                >
+                  {isSigningOut ? (
+                    <AppIcon name="loader" className="size-4 animate-spin" />
+                  ) : (
+                    <AppIcon name="logOut" className="size-4" />
+                  )}
+                  {isSigningOut ? "Đang thoát..." : "Đăng xuất"}
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}
@@ -230,6 +303,21 @@ export function SiteHeader() {
         />
       ) : null}
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex items-end gap-2 lg:hidden">
+        {userEmail ? (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={isSigningOut}
+            className="inline-flex size-12 items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-950 shadow-xl shadow-slate-900/15 backdrop-blur-xl transition hover:-translate-y-0.5 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100 disabled:cursor-wait disabled:opacity-70"
+            aria-label="Đăng xuất"
+          >
+            {isSigningOut ? (
+              <AppIcon name="loader" className="size-5 animate-spin" />
+            ) : (
+              <AppIcon name="logOut" className="size-5" />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleRefresh}

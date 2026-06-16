@@ -27,6 +27,11 @@ GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccou
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
 NEXT_PUBLIC_TASK_POLLING_MS=15000
 TASK_CACHE_TTL_MS=60000
+AUTH_SECRET=replace-with-a-random-32-byte-secret
+AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
+AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
+AUTH_DEBUG=false
 ```
 
 Optional values:
@@ -38,13 +43,21 @@ GOOGLE_XLSX_SHEET_NAME=To-Do List
 
 5. Share the Google Sheet with the service account email as Editor.
 6. Add a domain in Dokploy and route it to service port `3000`.
-7. Deploy.
+7. In Google Cloud OAuth, add this callback URL:
+
+```text
+https://your-domain.com/api/auth/callback/google
+```
+
+8. Deploy.
 
 ## Credential Notes
 
 Prefer `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` on Dokploy. Do not copy the service-account JSON file into the image.
 
 `GOOGLE_APPLICATION_CREDENTIALS` is still supported for local development if it points to a mounted JSON file, but the Compose file does not mount one by default.
+
+Set `AUTH_DEBUG=true` only while debugging login issues, then switch it back to `false`.
 
 ## Local Docker Test
 
@@ -69,3 +82,15 @@ GET /api/health
 ```
 
 This endpoint only verifies that the Next.js server is running. It does not call Google Sheets.
+
+## Build Speed Notes
+
+The first Dokploy build is usually slow because Docker has to download the base image, install all pnpm dependencies, and compile Next.js from a cold cache.
+
+The Dockerfile is optimized for repeat deploys:
+
+- pnpm dependencies use a BuildKit cache mount.
+- Next.js build cache is persisted at `/app/.next/cache` through a BuildKit cache mount.
+- The builder stage copies only app build inputs (`src`, `public`, and config files), so docs-only changes do not invalidate the Next.js build layer.
+
+If deploys are still too slow, the next step is building the Docker image in GitHub Actions and configuring Dokploy to pull the prebuilt image from GHCR instead of building on the server.
