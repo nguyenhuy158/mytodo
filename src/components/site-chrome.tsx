@@ -1,0 +1,269 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { mutate } from "swr";
+import type { TaskCreateInput, TasksPayload } from "@/lib/tasks";
+import { AppIcon, type AppIconName } from "@/components/app-icon";
+import { TaskCreateDialog } from "@/components/task-create-dialog";
+import { cn } from "@/lib/utils";
+
+const TASKS_API_URL = "/api/tasks";
+const LAST_NAV_STORAGE_KEY = "mytodo:last-nav";
+
+type NavItem = {
+  href: string;
+  icon: AppIconName;
+  label: string;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  { href: "/", icon: "dashboard", label: "Tổng quan" },
+  { href: "/charts", icon: "chart", label: "Biểu đồ" },
+  { href: "/tasks", icon: "listTodo", label: "Task board" },
+  { href: "/kanban", icon: "kanban", label: "Kanban" },
+  { href: "/week", icon: "calendarDays", label: "Task tuần này" },
+];
+
+const getActiveNavHref = (pathname: string) =>
+  NAV_ITEMS.find((item) =>
+    item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
+  )?.href;
+
+const readLastNavHref = () => {
+  try {
+    return window.localStorage.getItem(LAST_NAV_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const saveLastNavHref = (href: string) => {
+  try {
+    window.localStorage.setItem(LAST_NAV_STORAGE_KEY, href);
+  } catch {
+    // Local storage may be unavailable in restricted browser modes.
+  }
+};
+
+const fetchTasks = async (url: string): Promise<TasksPayload> => {
+  const response = await fetch(url, { cache: "no-store" });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    const message = payload.error?.message ?? "Không reload được Google Sheet.";
+
+    throw Object.assign(new Error(message), { payload });
+  }
+
+  return payload;
+};
+
+export function SiteHeader() {
+  const pathname = usePathname();
+  const navLinkRefs = useRef(new Map<string, HTMLAnchorElement>());
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const activeNavHref = getActiveNavHref(pathname);
+
+  useEffect(() => {
+    const currentNavHref = activeNavHref ?? readLastNavHref();
+
+    if (!currentNavHref) {
+      return;
+    }
+
+    saveLastNavHref(currentNavHref);
+    navLinkRefs.current.get(currentNavHref)?.focus({ preventScroll: true });
+  }, [activeNavHref]);
+
+  const handleRefresh = () => {
+    const refreshTasks = async () => {
+      setIsRefreshing(true);
+
+      try {
+        const payload = await fetchTasks(`${TASKS_API_URL}?force=1&ts=${Date.now()}`);
+
+        await mutate(TASKS_API_URL, payload, { revalidate: false });
+
+        return payload;
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+
+    toast.promise(refreshTasks(), {
+      loading: "Đang reload Google Sheet...",
+      success: (payload) =>
+        `Đã reload ${payload?.tasks.length ?? 0} task từ Sheet.`,
+      error: (refreshError) =>
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Không reload được Google Sheet.",
+    });
+  };
+
+  const handleCreateTask = async (input: TaskCreateInput) => {
+    const createTask = async () => {
+      setIsCreating(true);
+
+      try {
+        const response = await fetch(TASKS_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(input),
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          const message =
+            payload.error?.message ?? "Không tạo được task trên Google Sheet.";
+
+          throw Object.assign(new Error(message), { payload });
+        }
+
+        await mutate(TASKS_API_URL, payload as TasksPayload, {
+          revalidate: false,
+        });
+        setIsCreateOpen(false);
+
+        return payload as TasksPayload;
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    const createPromise = createTask();
+
+    toast.promise(createPromise, {
+      loading: "Đang tạo task trên Google Sheet...",
+      success: (payload) =>
+        `Đã tạo task. Sheet hiện có ${payload?.tasks.length ?? 0} task.`,
+      error: (createError) =>
+        createError instanceof Error
+          ? createError.message
+          : "Không tạo được task trên Google Sheet.",
+    });
+
+    await createPromise;
+  };
+
+  return (
+    <>
+      <header className="sticky top-0 z-50 border-b border-white/70 bg-[#f7f1e8]/90 px-4 py-3 shadow-sm shadow-slate-900/5 backdrop-blur-xl sm:px-8 lg:px-10">
+        <div className="mx-auto grid w-full max-w-[95rem] gap-3 lg:grid-cols-[auto_1fr_auto] lg:items-center">
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              href="/"
+              className="text-lg font-black tracking-[-0.06em] text-slate-950 sm:text-xl"
+            >
+              2026 Tasks
+            </Link>
+          </div>
+          <nav className="grid grid-cols-5 gap-1.5 sm:flex sm:gap-2 lg:justify-center">
+            {NAV_ITEMS.map((item) => {
+              const isActive =
+                activeNavHref === item.href;
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-label={item.label}
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={() => saveLastNavHref(item.href)}
+                  ref={(element) => {
+                    if (element) {
+                      navLinkRefs.current.set(item.href, element);
+                    } else {
+                      navLinkRefs.current.delete(item.href);
+                    }
+                  }}
+                  className={cn(
+                    "inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-2xl border px-2 text-center text-xs font-black transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 sm:h-auto sm:rounded-full sm:px-4 sm:py-2 sm:text-sm lg:shrink-0",
+                    isActive
+                      ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-900/15"
+                      : "border-white bg-white/70 text-slate-600 hover:border-teal-200 hover:text-teal-800",
+                  )}
+                >
+                  <AppIcon name={item.icon} className="size-4" />
+                  <span className="hidden sm:inline">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="hidden items-center gap-2 lg:flex">
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white shadow-lg shadow-teal-900/15 transition hover:-translate-y-0.5 hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+            >
+              <AppIcon name="plus" className="size-4" />
+              Tạo task
+            </button>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-teal-900 disabled:cursor-wait disabled:opacity-70"
+            >
+              {isRefreshing ? (
+                <AppIcon name="loader" className="size-4 animate-spin" />
+              ) : (
+                <AppIcon name="refresh" className="size-4" />
+              )}
+              Reload
+            </button>
+          </div>
+        </div>
+      </header>
+      {isCreateOpen ? (
+        <TaskCreateDialog
+          isSaving={isCreating}
+          onClose={() => setIsCreateOpen(false)}
+          onSubmit={handleCreateTask}
+        />
+      ) : null}
+      <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex items-end gap-2 lg:hidden">
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="inline-flex size-12 items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-950 shadow-xl shadow-slate-900/15 backdrop-blur-xl transition hover:-translate-y-0.5 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 disabled:cursor-wait disabled:opacity-70"
+          aria-label="Reload Google Sheet"
+        >
+          {isRefreshing ? (
+            <AppIcon name="loader" className="size-5 animate-spin" />
+          ) : (
+            <AppIcon name="refresh" className="size-5" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsCreateOpen(true)}
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-2xl shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+          aria-label="Tạo task mới"
+        >
+          <AppIcon name="plus" className="size-5" />
+          <span>Tạo task</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+export function SiteFooter() {
+  return (
+    <footer className="border-t border-white/70 bg-[#f7f1e8]/85 px-5 py-5 text-sm font-semibold text-slate-500 sm:px-8 lg:px-10">
+      <div className="mx-auto flex w-full max-w-[95rem] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>2026 Tasks</span>
+        <span>Private Sheet data stays server-side.</span>
+      </div>
+    </footer>
+  );
+}

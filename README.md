@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 2026 To-do Cockpit
 
-## Getting Started
+Next.js dashboard đọc task từ Google Sheet private bằng Google Sheets API, cho phép cập nhật lại một số field vận hành về Sheet, sau đó client polling `/api/tasks` để cập nhật timeline trên website.
 
-First, run the development server:
+## Tài liệu dự án
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- [docs/README.md](./docs/README.md): mục lục tài liệu.
+- [docs/SETUP.md](./docs/SETUP.md): cài đặt local, Google service account, `.env.local`.
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md): routes, components, data flow, cache.
+- [docs/OPERATIONS.md](./docs/OPERATIONS.md): force reload, troubleshooting, checklist.
+- [docs/DEPLOY_DOKPLOY.md](./docs/DEPLOY_DOKPLOY.md): deploy bằng Dokploy.
+
+## Cấu hình Google Sheet private
+
+1. Tạo Google Cloud service account.
+2. Enable Google Sheets API cho project đó.
+3. Nếu file vẫn là Office `.xlsx`, enable thêm Google Drive API.
+4. Tạo key JSON cho service account.
+5. Share Google Sheet cho email service account với quyền Editor.
+6. Tạo `.env.local` từ `.env.example`.
+
+```txt
+GOOGLE_SHEET_ID=1Sv86oc9zXbvwSsD956uT4opSU8JqP04s
+GOOGLE_SHEET_GID=689856921
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
+NEXT_PUBLIC_TASK_POLLING_MS=15000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Nếu deploy lên nơi không đọc được file JSON local, dùng cặp env
+`GOOGLE_SERVICE_ACCOUNT_EMAIL` và `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` thay cho
+`GOOGLE_APPLICATION_CREDENTIALS`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Nếu file trên Drive vẫn là Office `.xlsx`, app sẽ tải workbook qua Drive API và
+parse sheet đầu tiên. Có thể set `GOOGLE_XLSX_SHEET_NAME=To-Do List` nếu muốn
+chỉ định tab cụ thể.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Chạy local
 
-## Learn More
+```bash
+pnpm install
+pnpm dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Mở [http://localhost:3000](http://localhost:3000).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Makefile
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Các lệnh hay dùng:
 
-## Deploy on Vercel
+```bash
+make dev
+make check
+make env-check
+make lint
+make build
+make audit
+make docker-build
+make docker-run
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`make check` sẽ chạy kiểm tra `.env.local`, ESLint và production build.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Mapping cột
+
+App tự tìm dòng header có `TASK` và `Deadline`, rồi đọc các cột:
+
+- `Tags`
+- `System`
+- `TASK`
+- `Details`
+- `PRIORITY`
+- `STATUS`
+- `Date Rec`
+- `Deadline`
+- `Actual Da`
+- `Note`
+
+Nếu tên sheet/range khác cấu trúc hiện tại, set thêm:
+
+```txt
+GOOGLE_SHEET_RANGE="'To-Do List'!A1:N"
+```
+
+## Polling
+
+Client dùng SWR và refresh theo `NEXT_PUBLIC_TASK_POLLING_MS`, mặc định `15000ms`.
+
+## Kanban
+
+Trang `/kanban` nhóm task theo `STATUS`. Kéo card sang column khác hoặc bấm nút
+status trên card sẽ gọi `PATCH /api/tasks` để ghi `STATUS` ngược về Sheet.
+
+## Write-back
+
+Header có nút `Tạo task` để append dòng mới vào Google Sheet. Trang `/tasks`
+có form `Sửa Sheet` cho từng task. App hiện ghi ngược các cột:
+
+- `PRIORITY`
+- `STATUS`
+- `Actual Da`
+- `Note`
+
+Khi tạo task mới, app ghi các cột `Tags`, `System`, `TASK`, `Details`,
+`PRIORITY`, `STATUS`, `Date Rec`, `Deadline`, `Actual Da`, `Note` nếu sheet có
+các header tương ứng. Sau khi lưu, API xóa cache server và reload lại dữ liệu từ
+Sheet.
+
+## Icons
+
+Dự án dùng `lucide-react` qua wrapper chung:
+
+```tsx
+import { AppIcon } from "@/components/app-icon";
+
+<AppIcon name="refresh" className="size-4" />
+```
+
+Khi cần icon mới, thêm icon vào registry trong `src/components/app-icon.tsx`
+thay vì import rải rác ở nhiều component.
