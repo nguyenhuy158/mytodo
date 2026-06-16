@@ -36,6 +36,7 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
+APP_BASE_URL=http://localhost:3000
 ```
 
 Optional:
@@ -43,6 +44,12 @@ Optional:
 ```txt
 GOOGLE_XLSX_SHEET_NAME=To-Do List
 GOOGLE_SHEET_RANGE="'To-Do List'!A1:N"
+MAGIC_LINK_SMTP_HOST=smtp.gmail.com
+MAGIC_LINK_SMTP_PORT=465
+MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
+MAGIC_LINK_SMTP_PASS=your-gmail-app-password
+MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+MAGIC_LINK_TTL_MINUTES=15
 ```
 
 For deployment providers that cannot read a local JSON file, use:
@@ -80,6 +87,29 @@ If `AUTH_ALLOWED_EMAILS` is empty, the app denies all users.
 Set `AUTH_DEBUG=true` temporarily when debugging OAuth callback issues. Keep it
 `false` in normal production runs.
 
+## Magic Link Login Setup
+
+Magic-link login lets a user enter Gmail on `/login`, receive a short-lived
+login link, then click it to create the same Auth.js session.
+
+1. Turn on 2-Step Verification for the Gmail sender account.
+2. Create a Gmail App Password.
+3. Set SMTP env values:
+
+```txt
+APP_BASE_URL=http://localhost:3000
+MAGIC_LINK_SMTP_HOST=smtp.gmail.com
+MAGIC_LINK_SMTP_PORT=465
+MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
+MAGIC_LINK_SMTP_PASS=your-gmail-app-password
+MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+MAGIC_LINK_TTL_MINUTES=15
+```
+
+Only emails in `AUTH_ALLOWED_EMAILS` can use a magic link. The request endpoint
+returns a generic success message so the UI does not reveal which emails are
+allowed.
+
 ## Google Cloud Setup
 
 1. Create a Google Cloud service account.
@@ -103,6 +133,7 @@ This checks:
 - required env values are present.
 - `GOOGLE_APPLICATION_CREDENTIALS` points to an existing file.
 - `AUTH_ALLOWED_EMAILS` contains at least one email.
+- if SMTP env is present, host/user/pass are all present.
 
 ## Run Local Dev
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth, signIn } from "@/auth";
+import { MagicLinkForm } from "@/components/magic-link-form";
 import { isEmailAllowed } from "@/lib/auth-config";
 
 type LoginPageProps = {
@@ -57,20 +58,27 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </Link>
             </div>
           ) : (
-            <form
-              className="mt-6"
-              action={async () => {
-                "use server";
-                await signIn("google", { redirectTo: callbackUrl });
-              }}
-            >
-              <button
-                type="submit"
-                className="inline-flex h-14 w-full items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-xl shadow-slate-900/20 transition hover:-translate-y-0.5 hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+            <div>
+              <MagicLinkForm redirectTo={callbackUrl} />
+              <div className="my-5 flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                hoặc
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <form
+                action={async () => {
+                  "use server";
+                  await signIn("google", { redirectTo: callbackUrl });
+                }}
               >
-                Tiếp tục với Google
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  className="inline-flex h-14 w-full items-center justify-center rounded-full border border-white bg-white/80 px-5 text-sm font-black text-slate-900 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+                >
+                  Tiếp tục với Google
+                </button>
+              </form>
+            </div>
           )}
         </div>
       </section>
@@ -97,6 +105,10 @@ function getErrorMessage(error: string | undefined) {
 
   if (error === "Configuration") {
     return "Đăng nhập đang chưa được cấu hình đúng.";
+  }
+
+  if (error === "MagicLink" || error === "CredentialsSignin") {
+    return "Link đăng nhập không hợp lệ hoặc đã hết hạn.";
   }
 
   if (error) {

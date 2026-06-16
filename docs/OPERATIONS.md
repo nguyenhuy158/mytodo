@@ -106,6 +106,25 @@ Likely causes:
 For short-lived debugging, set `AUTH_DEBUG=true` and inspect server logs. Turn it
 back to `false` after the issue is fixed.
 
+### Cannot Receive Magic Login Link
+
+Likely causes:
+
+- `MAGIC_LINK_SMTP_HOST`, `MAGIC_LINK_SMTP_USER`, or `MAGIC_LINK_SMTP_PASS` missing
+- Gmail sender does not have 2-Step Verification and App Password enabled
+- `APP_BASE_URL` points to the wrong local port or deploy domain
+- target email is not listed in `AUTH_ALLOWED_EMAILS`
+- the link expired; default TTL is `MAGIC_LINK_TTL_MINUTES=15`
+
+Run:
+
+```bash
+make env-check
+```
+
+Then try `/login` again. The UI intentionally returns a generic success message
+for unknown emails so the app does not reveal the whitelist.
+
 ### `File không phải Google Sheet hoặc XLSX`
 
 The Drive file MIME type is not supported. Confirm the file is a native Google Sheet or Office spreadsheet file.

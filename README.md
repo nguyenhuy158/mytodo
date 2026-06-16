@@ -30,6 +30,13 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
+APP_BASE_URL=http://localhost:3000
+MAGIC_LINK_SMTP_HOST=smtp.gmail.com
+MAGIC_LINK_SMTP_PORT=465
+MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
+MAGIC_LINK_SMTP_PASS=your-gmail-app-password
+MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+MAGIC_LINK_TTL_MINUTES=15
 ```
 
 Nếu deploy lên nơi không đọc được file JSON local, dùng cặp env
@@ -46,6 +53,11 @@ http://localhost:3000/api/auth/callback/google
 ```
 
 Nếu dev server chạy port khác như `3001`, đổi callback URL theo đúng port đó.
+
+Magic-link login cho phép nhập Gmail trên `/login`, app gửi link đăng nhập về
+email đó. Chỉ email trong `AUTH_ALLOWED_EMAILS` mới dùng được link. Với Gmail,
+dùng App Password cho `MAGIC_LINK_SMTP_PASS`, không dùng mật khẩu Gmail chính.
+`APP_BASE_URL` phải trùng domain public để link trong email mở đúng website.
 
 Nếu file trên Drive vẫn là Office `.xlsx`, app sẽ tải workbook qua Drive API và
 parse sheet đầu tiên. Có thể set `GOOGLE_XLSX_SHEET_NAME=To-Do List` nếu muốn
