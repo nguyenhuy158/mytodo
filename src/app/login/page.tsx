@@ -36,7 +36,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Đăng nhập
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-slate-500">
-            Dùng Google để truy cập dashboard task nội bộ.
+            Nhập Gmail hoặc dùng Google để truy cập task nội bộ.
           </p>
 
           {errorMessage ? (
