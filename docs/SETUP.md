@@ -55,6 +55,19 @@ MAGIC_LINK_TTL_MINUTES=15
 For deployment providers that cannot read a local JSON file, use:
 
 ```txt
+GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiwi...
+```
+
+Generate that one-line value from the service-account JSON file:
+
+```bash
+base64 < /absolute/path/to/service-account.json | tr -d '\n'
+```
+
+If the provider does not support a large base64 env value, use the email/private
+key pair instead:
+
+```txt
 GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
 ```
@@ -131,6 +144,7 @@ This checks:
 
 - `.env.local` exists.
 - required env values are present.
+- `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` decodes to a service-account JSON if set.
 - `GOOGLE_APPLICATION_CREDENTIALS` points to an existing file.
 - `AUTH_ALLOWED_EMAILS` contains at least one email.
 - if SMTP env is present, host/user/pass are all present.

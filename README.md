@@ -40,8 +40,19 @@ MAGIC_LINK_TTL_MINUTES=15
 ```
 
 Nếu deploy lên nơi không đọc được file JSON local, dùng cặp env
-`GOOGLE_SERVICE_ACCOUNT_EMAIL` và `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` thay cho
-`GOOGLE_APPLICATION_CREDENTIALS`.
+`GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` thay cho `GOOGLE_APPLICATION_CREDENTIALS`.
+
+```bash
+base64 < /absolute/path/to/service-account.json | tr -d '\n'
+```
+
+```txt
+GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiwi...
+```
+
+App vẫn hỗ trợ `GOOGLE_SERVICE_ACCOUNT_EMAIL` và
+`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, nhưng trên Docker/Dokploy nên ưu tiên
+base64 JSON để tránh lỗi xuống dòng private key trong `.env`.
 
 Google login dùng Auth.js. Chỉ email trong `AUTH_ALLOWED_EMAILS` mới xem được
 website và gọi `/api/tasks`. Google OAuth callback URL:

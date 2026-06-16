@@ -351,9 +351,20 @@ function toPositiveNumber(value: string | undefined, fallback: number) {
 }
 
 function getAuthClient() {
+  const serviceAccountJsonBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+  if (serviceAccountJsonBase64) {
+    const credentials = parseServiceAccountJsonBase64(serviceAccountJsonBase64);
+
+    return new google.auth.JWT({
+      email: credentials.email,
+      key: normalizePrivateKey(credentials.privateKey),
+      scopes: [SHEETS_SCOPE, DRIVE_SCOPE],
+    });
+  }
 
   if (credentialsPath) {
     return new google.auth.GoogleAuth({
@@ -364,7 +375,7 @@ function getAuthClient() {
 
   if (!email || !privateKey) {
     throw new SheetConfigError(
-      "Thiếu GOOGLE_APPLICATION_CREDENTIALS hoặc GOOGLE_SERVICE_ACCOUNT_EMAIL/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY trong .env.local.",
+      "Thiếu GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, GOOGLE_APPLICATION_CREDENTIALS hoặc GOOGLE_SERVICE_ACCOUNT_EMAIL/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY trong .env.local.",
     );
   }
 
@@ -373,6 +384,34 @@ function getAuthClient() {
     key: normalizePrivateKey(privateKey),
     scopes: [SHEETS_SCOPE, DRIVE_SCOPE],
   });
+}
+
+function parseServiceAccountJsonBase64(value: string) {
+  try {
+    const decoded = Buffer.from(value, "base64").toString("utf8");
+    const credentials = JSON.parse(decoded) as {
+      client_email?: unknown;
+      private_key?: unknown;
+    };
+
+    if (
+      typeof credentials.client_email !== "string" ||
+      typeof credentials.private_key !== "string"
+    ) {
+      throw new Error("missing client_email or private_key");
+    }
+
+    return {
+      email: credentials.client_email,
+      privateKey: credentials.private_key,
+    };
+  } catch (error) {
+    throw new SheetConfigError(
+      `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 không hợp lệ: ${
+        error instanceof Error ? error.message : "không decode được JSON"
+      }.`,
+    );
+  }
 }
 
 async function updateNativeSheetTask(

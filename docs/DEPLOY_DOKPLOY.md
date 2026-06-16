@@ -23,8 +23,7 @@ docker-compose.dokploy.yml
 ```env
 GOOGLE_SHEET_ID=1Sv86oc9zXbvwSsD956uT4opSU8JqP04s
 GOOGLE_SHEET_GID=689856921
-GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
-GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
+GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiwi...
 NEXT_PUBLIC_TASK_POLLING_MS=15000
 TASK_CACHE_TTL_MS=60000
 AUTH_SECRET=replace-with-a-random-32-byte-secret
@@ -64,7 +63,30 @@ site.
 
 ## Credential Notes
 
-Prefer `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` on Dokploy. Do not copy the service-account JSON file into the image.
+Prefer `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` on Dokploy. It stores the whole
+service-account JSON as one line, so Docker Compose does not break on private
+key newlines.
+
+Generate it locally:
+
+```bash
+base64 < /absolute/path/to/service-account.json | tr -d '\n'
+```
+
+Paste the output into Dokploy:
+
+```env
+GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiwi...
+```
+
+`GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` are
+still supported, but the private key must stay on one physical `.env` line with
+literal `\n` separators:
+
+```env
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
+```
 
 `GOOGLE_APPLICATION_CREDENTIALS` is still supported for local development if it points to a mounted JSON file, but the Compose file does not mount one by default.
 

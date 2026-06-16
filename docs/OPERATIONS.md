@@ -82,6 +82,7 @@ Writable fields are:
 Likely causes:
 
 - `.env.local` missing
+- `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` invalid or not decoded from the full JSON key file
 - `GOOGLE_APPLICATION_CREDENTIALS` path invalid
 - service account JSON missing
 - Sheet not shared to service account email
