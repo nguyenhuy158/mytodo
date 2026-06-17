@@ -16,9 +16,11 @@ import type {
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
 import { TaskTimelinePill } from "@/components/task-timeline";
+import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
+const WEEK_SELECTION_STORAGE_KEY = "mytodo:selected-task:/week";
 
 const PRIORITY_ORDER: Record<TaskPriority, number> = {
   High: 0,
@@ -71,7 +73,6 @@ const fetcher = async (url: string): Promise<TasksPayload> => {
 
 export function WeeklyTasksPage() {
   const [query, setQuery] = useState("");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query);
   const { data, error, isLoading } = useSWR<TasksPayload>(
     TASKS_API_URL,
@@ -85,6 +86,11 @@ export function WeeklyTasksPage() {
 
   const weekWindow = useMemo(() => getCurrentWeekWindow(), []);
   const tasks = useMemo(() => data?.tasks ?? [], [data?.tasks]);
+  const [selectedTaskId, setSelectedTaskId] = usePersistedTaskSelection({
+    isReady: Boolean(data),
+    storageKey: WEEK_SELECTION_STORAGE_KEY,
+    tasks,
+  });
   const taskError = error as TaskFetchError | undefined;
   const weekTasks = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();

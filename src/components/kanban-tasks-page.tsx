@@ -12,9 +12,11 @@ import type {
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
 import { TaskTimelinePill } from "@/components/task-timeline";
+import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
+const KANBAN_SELECTION_STORAGE_KEY = "mytodo:selected-task:/kanban";
 
 const STATUS_COLUMNS: Array<{
   status: TaskStatus;
@@ -90,7 +92,6 @@ export function KanbanTasksPage() {
   const [dropTargetStatus, setDropTargetStatus] = useState<TaskStatus | null>(
     null,
   );
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query);
   const { data, error, isLoading, mutate } = useSWR<TasksPayload>(
     TASKS_API_URL,
@@ -103,6 +104,11 @@ export function KanbanTasksPage() {
   );
 
   const tasks = useMemo(() => data?.tasks ?? [], [data?.tasks]);
+  const [selectedTaskId, setSelectedTaskId] = usePersistedTaskSelection({
+    isReady: Boolean(data),
+    storageKey: KANBAN_SELECTION_STORAGE_KEY,
+    tasks,
+  });
   const selectedTask = useMemo(
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [selectedTaskId, tasks],

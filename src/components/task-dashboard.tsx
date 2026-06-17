@@ -29,11 +29,13 @@ import {
   formatTaskTimeline,
   TaskTimelinePill,
 } from "@/components/task-timeline";
+import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
 
 const SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1Sv86oc9zXbvwSsD956uT4opSU8JqP04s/edit?gid=689856921#gid=689856921";
 const TASKS_API_URL = "/api/tasks";
+const TASK_BOARD_SELECTION_STORAGE_KEY = "mytodo:selected-task:/tasks";
 const TASKS_PER_PAGE = 12;
 
 const STATUS_FILTERS: Array<TaskStatus | "All"> = [
@@ -109,7 +111,6 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [savingRowNumber, setSavingRowNumber] = useState<number | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query);
 
   const { data, error, mutate } = useSWR<TasksPayload>(
@@ -123,6 +124,11 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   );
 
   const tasks = useMemo(() => data?.tasks ?? [], [data?.tasks]);
+  const [selectedTaskId, setSelectedTaskId] = usePersistedTaskSelection({
+    isReady: Boolean(data),
+    storageKey: TASK_BOARD_SELECTION_STORAGE_KEY,
+    tasks,
+  });
   const selectedTask = useMemo(
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [selectedTaskId, tasks],
