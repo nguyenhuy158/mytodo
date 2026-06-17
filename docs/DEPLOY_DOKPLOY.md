@@ -130,8 +130,24 @@ The first Dokploy build is usually slow because Docker has to download the base 
 The Dockerfile is optimized for repeat deploys:
 
 - pnpm dependencies use a BuildKit cache mount.
-- Next.js build cache is persisted at `/app/.next/cache` through a BuildKit cache mount.
-- Docker builds use `corepack pnpm run build:docker`, which runs `next build --webpack` for more predictable compile time on small Dokploy servers.
+- Next.js build cache is persisted at `/app/.next/cache` through a BuildKit cache mount. This includes Turbopack's filesystem cache (`.next/cache/turbopack`).
+- Docker builds use `corepack pnpm run build:docker`, which runs `next build` with Turbopack (the default bundler in Next.js 16). Turbopack is markedly faster than `--webpack` and, with `experimental.turbopackFileSystemCacheForBuild` enabled in `next.config.ts`, a warm rebuild reuses the cached compilation.
 - The builder stage copies only app build inputs (`src`, `public`, and config files), so docs-only changes do not invalidate the Next.js build layer.
+
+Measured locally (cold pnpm cache):
+
+| Build | Time |
+| ----- | ---- |
+| `next build --webpack` (previous), cold | ~1m52s |
+| `next build` (Turbopack), cold | ~0m54s |
+| `next build` (Turbopack), warm FS cache | ~0m23s |
+
+### Keep Dokploy build cache enabled
+
+The warm (~sub-minute) rebuild only happens when Dokploy reuses the Docker build cache between deploys. To keep it fast:
+
+- Do **not** enable "Clean Cache" / "Force rebuild (no cache)" on the Dokploy application — that wipes both the layer cache and the BuildKit cache mounts, forcing a full cold build every time (this is the usual cause of every deploy taking 10+ minutes).
+- Leave BuildKit enabled (default for Docker Compose v2 builds), so the `--mount=type=cache` mounts work.
+- Because the `deps` stage only copies `package.json` + `pnpm-lock.yaml`, the dependency-install layer stays cached as long as those files do not change.
 
 If deploys are still too slow, the next step is building the Docker image in GitHub Actions and configuring Dokploy to pull the prebuilt image from GHCR instead of building on the server.

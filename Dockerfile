@@ -19,6 +19,8 @@ COPY --link --from=deps /app/node_modules ./node_modules
 COPY --link package.json pnpm-lock.yaml next.config.ts postcss.config.mjs tsconfig.json ./
 COPY --link public ./public
 COPY --link src ./src
+# The cache mount holds Turbopack's filesystem build cache (.next/cache/turbopack).
+# Keep Dokploy build cache enabled so this survives between deploys → warm sub-minute rebuilds.
 RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
   corepack pnpm run build:docker
 
