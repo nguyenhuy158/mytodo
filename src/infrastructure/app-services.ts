@@ -7,7 +7,7 @@ import { createTaskService } from "@/application/tasks/task-service";
 import { createGeminiWeeklyTaskSummarizer } from "@/infrastructure/gemini/gemini-weekly-task-summarizer";
 import { createGoogleSheetTaskRepository } from "@/infrastructure/google-sheets/google-sheet-task-repository";
 import { createFileTaskBackupRepository } from "@/infrastructure/task-backups/file-task-backup-repository";
-import { createFileTaskHistoryRepository } from "@/infrastructure/task-history/file-task-history-repository";
+import { createGoogleSheetTaskHistoryRepository } from "@/infrastructure/task-history/google-sheet-task-history-repository";
 
 export function createTaskApplicationService() {
   return createTaskService(createGoogleSheetTaskRepository());
@@ -21,7 +21,7 @@ export function createTaskBackupApplicationService() {
 }
 
 export function createTaskHistoryApplicationService() {
-  return createTaskHistoryService(createFileTaskHistoryRepository());
+  return createTaskHistoryService(createGoogleSheetTaskHistoryRepository());
 }
 
 export function createWeekSummaryApplicationService() {

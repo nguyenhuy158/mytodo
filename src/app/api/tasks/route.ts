@@ -4,6 +4,7 @@ import {
   createTaskHistoryApplicationService,
 } from "@/infrastructure/app-services";
 import { isEmailAllowed } from "@/lib/auth-config";
+import { getAuditRequestContext } from "@/lib/audit-request";
 import { SheetConfigError } from "@/lib/google-sheets";
 import type {
   SheetTask,
@@ -68,6 +69,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const input = parseTaskUpdateInput(await readJson(request));
+    const requestContext = getAuditRequestContext(request);
     const taskService = createTaskApplicationService();
     const beforePayload = await taskService.listTasks({ forceRefresh: true });
     const beforeTask = beforePayload.tasks.find(
@@ -81,9 +83,10 @@ export async function PATCH(request: NextRequest) {
     await recordTaskHistory(() =>
       createTaskHistoryApplicationService().recordTaskUpdate({
         actorEmail: authResult.email,
-        input,
         beforeTask,
         afterTask,
+        input,
+        requestContext,
       }),
     );
 
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     const input = parseTaskCreateInput(await readJson(request));
+    const requestContext = getAuditRequestContext(request);
     const taskService = createTaskApplicationService();
     const payload = await taskService.createTask(input);
     const createdTask = findCreatedTask(payload.tasks, input);
@@ -109,8 +113,9 @@ export async function POST(request: NextRequest) {
     await recordTaskHistory(() =>
       createTaskHistoryApplicationService().recordTaskCreate({
         actorEmail: authResult.email,
-        input,
         createdTask,
+        input,
+        requestContext,
       }),
     );
 

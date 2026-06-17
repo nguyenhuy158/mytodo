@@ -1,8 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import path from "node:path";
+import { google } from "googleapis";
 import type {
   TaskHistoryAction,
   TaskHistoryChange,
@@ -12,10 +11,33 @@ import type {
   TaskHistoryTarget,
 } from "@/lib/tasks";
 
-const DEFAULT_HISTORY_DIR = ".task-history";
-const HISTORY_FILENAME = "history.jsonl";
+const DEFAULT_SPREADSHEET_ID = "1Sv86oc9zXbvwSsD956uT4opSU8JqP04s";
+const DEFAULT_HISTORY_SHEET_TITLE = "Activity Log";
 const DEFAULT_HISTORY_LIMIT = 100;
 const MAX_HISTORY_LIMIT = 500;
+const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+const GOOGLE_SHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet";
+
+const HISTORY_HEADERS = [
+  "ID",
+  "Created At",
+  "Actor Email",
+  "Action",
+  "Summary",
+  "Target Type",
+  "Row Number",
+  "Task ID",
+  "Task Title",
+  "Backup ID",
+  "Changes JSON",
+  "Metadata JSON",
+] as const;
+
+type HistoryRuntimeConfig = {
+  spreadsheetId: string;
+  sheetTitle: string;
+};
 
 export class TaskHistoryStorageError extends Error {
   constructor(message: string) {
@@ -27,7 +49,8 @@ export class TaskHistoryStorageError extends Error {
 export async function appendTaskHistoryEntry(
   input: TaskHistoryCreateInput,
 ): Promise<TaskHistoryEntry> {
-  const historyDir = getHistoryDir();
+  const config = getRuntimeConfig();
+  const sheets = await getNativeSheetClient(config.spreadsheetId);
   const entry: TaskHistoryEntry = {
     id: randomUUID(),
     createdAt: input.createdAt ?? new Date().toISOString(),
@@ -39,12 +62,16 @@ export async function appendTaskHistoryEntry(
     metadata: input.metadata,
   };
 
-  await mkdir(historyDir, { recursive: true });
-  await appendFile(
-    getHistoryFilePath(),
-    `${JSON.stringify(entry)}\n`,
-    "utf8",
-  );
+  await ensureHistorySheet(sheets, config);
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: config.spreadsheetId,
+    range: `${quoteSheetName(config.sheetTitle)}!A:L`,
+    valueInputOption: "RAW",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: {
+      values: [toHistoryRow(entry)],
+    },
+  });
 
   return entry;
 }
@@ -53,38 +80,189 @@ export async function listTaskHistoryEntries(options?: {
   limit?: number;
 }): Promise<TaskHistoryEntry[]> {
   const limit = normalizeLimit(options?.limit);
+  const config = getRuntimeConfig();
+  const sheets = await getNativeSheetClient(config.spreadsheetId);
 
-  await mkdir(getHistoryDir(), { recursive: true });
+  await ensureHistorySheet(sheets, config);
 
-  let content = "";
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: config.spreadsheetId,
+    range: `${quoteSheetName(config.sheetTitle)}!A2:L`,
+    majorDimension: "ROWS",
+    valueRenderOption: "FORMATTED_VALUE",
+    dateTimeRenderOption: "FORMATTED_STRING",
+  });
 
-  try {
-    content = await readFile(getHistoryFilePath(), "utf8");
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-
-    throw new TaskHistoryStorageError("Không đọc được history log.");
-  }
-
-  return content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(parseHistoryLine)
+  return (response.data.values ?? [])
+    .map(parseHistoryRow)
     .filter((entry): entry is TaskHistoryEntry => Boolean(entry))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, limit);
 }
 
-function parseHistoryLine(line: string) {
-  try {
-    const parsed = JSON.parse(line) as unknown;
+async function getNativeSheetClient(spreadsheetId: string) {
+  const auth = getAuthClient();
+  const drive = google.drive({
+    version: "v3",
+    auth,
+  });
+  const metadata = await drive.files.get({
+    fileId: spreadsheetId,
+    fields: "mimeType,name",
+  });
 
-    return isTaskHistoryEntry(parsed) ? parsed : null;
+  if (metadata.data.mimeType !== GOOGLE_SHEET_MIME_TYPE) {
+    throw new TaskHistoryStorageError(
+      "Activity log chỉ tự tạo hidden tab khi nguồn dữ liệu là Google Sheet native.",
+    );
+  }
+
+  return google.sheets({
+    version: "v4",
+    auth,
+  });
+}
+
+async function ensureHistorySheet(
+  sheets: ReturnType<typeof google.sheets>,
+  config: HistoryRuntimeConfig,
+) {
+  const spreadsheet = await sheets.spreadsheets.get({
+    spreadsheetId: config.spreadsheetId,
+    fields: "sheets.properties(sheetId,title,hidden)",
+  });
+  const existingSheet = spreadsheet.data.sheets?.find(
+    (sheet) => sheet.properties?.title === config.sheetTitle,
+  );
+
+  if (existingSheet?.properties?.sheetId !== undefined) {
+    if (!existingSheet.properties.hidden) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: config.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: existingSheet.properties.sheetId,
+                  hidden: true,
+                },
+                fields: "hidden",
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    await ensureHistoryHeader(sheets, config);
+
+    return;
+  }
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: config.spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          addSheet: {
+            properties: {
+              title: config.sheetTitle,
+              hidden: true,
+            },
+          },
+        },
+      ],
+    },
+  });
+  await ensureHistoryHeader(sheets, config);
+}
+
+async function ensureHistoryHeader(
+  sheets: ReturnType<typeof google.sheets>,
+  config: HistoryRuntimeConfig,
+) {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: config.spreadsheetId,
+    range: `${quoteSheetName(config.sheetTitle)}!A1:L1`,
+    majorDimension: "ROWS",
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+  const currentHeader = response.data.values?.[0] ?? [];
+  const isHeaderReady = HISTORY_HEADERS.every(
+    (header, index) => currentHeader[index] === header,
+  );
+
+  if (isHeaderReady) {
+    return;
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.spreadsheetId,
+    range: `${quoteSheetName(config.sheetTitle)}!A1:L1`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [Array.from(HISTORY_HEADERS)],
+    },
+  });
+}
+
+function toHistoryRow(entry: TaskHistoryEntry) {
+  return [
+    entry.id,
+    entry.createdAt,
+    entry.actorEmail,
+    entry.action,
+    entry.summary,
+    entry.target.type,
+    entry.target.rowNumber?.toString() ?? "",
+    entry.target.taskId ?? "",
+    entry.target.taskTitle ?? "",
+    entry.target.backupId ?? "",
+    JSON.stringify(entry.changes),
+    entry.metadata ? JSON.stringify(entry.metadata) : "",
+  ];
+}
+
+function parseHistoryRow(row: unknown[]) {
+  const entry: TaskHistoryEntry = {
+    id: getCell(row, 0),
+    createdAt: getCell(row, 1),
+    actorEmail: getCell(row, 2),
+    action: getCell(row, 3) as TaskHistoryAction,
+    summary: getCell(row, 4),
+    target: {
+      type: getCell(row, 5) as TaskHistoryTarget["type"],
+      rowNumber: parseRowNumber(getCell(row, 6)),
+      taskId: optionalCell(row, 7),
+      taskTitle: optionalCell(row, 8),
+      backupId: optionalCell(row, 9),
+    },
+    changes: parseJson(getCell(row, 10), []),
+    metadata: parseMetadata(getCell(row, 11)),
+  };
+
+  return isTaskHistoryEntry(entry) ? entry : null;
+}
+
+function parseMetadata(
+  value: string,
+): Record<string, TaskHistoryMetadataValue> | undefined {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  return parseJson<Record<string, TaskHistoryMetadataValue> | undefined>(
+    value,
+    undefined,
+  );
+}
+
+function parseJson<T>(value: string, fallback: T) {
+  try {
+    return JSON.parse(value) as T;
   } catch {
-    return null;
+    return fallback;
   }
 }
 
@@ -151,13 +329,30 @@ function isHistoryMetadata(
     return false;
   }
 
-  return Object.values(value).every(
-    (item) =>
-      item === null ||
-      typeof item === "string" ||
-      typeof item === "number" ||
-      typeof item === "boolean",
-  );
+  return Object.values(value).every(isHistoryMetadataValue);
+}
+
+function isHistoryMetadataValue(
+  value: unknown,
+): value is TaskHistoryMetadataValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every(isHistoryMetadataValue);
+  }
+
+  if (isRecord(value)) {
+    return Object.values(value).every(isHistoryMetadataValue);
+  }
+
+  return false;
 }
 
 function normalizeLimit(value: number | undefined) {
@@ -170,18 +365,104 @@ function normalizeLimit(value: number | undefined) {
   return Math.min(Math.max(Math.trunc(normalizedLimit), 1), MAX_HISTORY_LIMIT);
 }
 
-function getHistoryDir() {
-  return path.join(process.cwd(), DEFAULT_HISTORY_DIR);
+function getRuntimeConfig(): HistoryRuntimeConfig {
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID?.trim();
+  const sheetTitle = process.env.TASK_HISTORY_SHEET_TITLE?.trim();
+
+  return {
+    spreadsheetId: spreadsheetId || DEFAULT_SPREADSHEET_ID,
+    sheetTitle: sheetTitle || DEFAULT_HISTORY_SHEET_TITLE,
+  };
 }
 
-function getHistoryFilePath() {
-  return path.join(getHistoryDir(), HISTORY_FILENAME);
+function getAuthClient() {
+  const serviceAccountJsonBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+  if (serviceAccountJsonBase64) {
+    const credentials = parseServiceAccountJsonBase64(serviceAccountJsonBase64);
+
+    return new google.auth.JWT({
+      email: credentials.email,
+      key: normalizePrivateKey(credentials.privateKey),
+      scopes: [SHEETS_SCOPE, DRIVE_SCOPE],
+    });
+  }
+
+  if (credentialsPath) {
+    return new google.auth.GoogleAuth({
+      keyFile: credentialsPath,
+      scopes: [SHEETS_SCOPE, DRIVE_SCOPE],
+    });
+  }
+
+  if (!email || !privateKey) {
+    throw new TaskHistoryStorageError(
+      "Thiếu Google service-account env để ghi Activity Log.",
+    );
+  }
+
+  return new google.auth.JWT({
+    email,
+    key: normalizePrivateKey(privateKey),
+    scopes: [SHEETS_SCOPE, DRIVE_SCOPE],
+  });
+}
+
+function parseServiceAccountJsonBase64(value: string) {
+  try {
+    const decoded = Buffer.from(value, "base64").toString("utf8");
+    const credentials = JSON.parse(decoded) as {
+      client_email?: unknown;
+      private_key?: unknown;
+    };
+
+    if (
+      typeof credentials.client_email !== "string" ||
+      typeof credentials.private_key !== "string"
+    ) {
+      throw new Error("missing client_email or private_key");
+    }
+
+    return {
+      email: credentials.client_email,
+      privateKey: credentials.private_key,
+    };
+  } catch (error) {
+    throw new TaskHistoryStorageError(
+      `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 không hợp lệ: ${
+        error instanceof Error ? error.message : "không decode được JSON"
+      }.`,
+    );
+  }
+}
+
+function parseRowNumber(value: string) {
+  const rowNumber = Number(value);
+
+  return Number.isInteger(rowNumber) && rowNumber > 0 ? rowNumber : undefined;
+}
+
+function getCell(row: unknown[], index: number) {
+  return String(row[index] ?? "").trim();
+}
+
+function optionalCell(row: unknown[], index: number) {
+  const value = getCell(row, index);
+
+  return value || undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error;
+function normalizePrivateKey(value: string) {
+  return value.replace(/\\n/g, "\n");
+}
+
+function quoteSheetName(value: string) {
+  return `'${value.replaceAll("'", "''")}'`;
 }

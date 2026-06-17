@@ -6,7 +6,7 @@ import {
   listTaskHistoryEntries,
 } from "@/lib/task-history";
 
-export function createFileTaskHistoryRepository(): TaskHistoryRepository {
+export function createGoogleSheetTaskHistoryRepository(): TaskHistoryRepository {
   return {
     appendEntry: appendTaskHistoryEntry,
     listEntries: listTaskHistoryEntries,

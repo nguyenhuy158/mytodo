@@ -123,7 +123,13 @@ export type TaskHistoryAction =
 
 export type TaskHistoryTargetType = "task" | "backup" | "sheet";
 
-export type TaskHistoryMetadataValue = string | number | boolean | null;
+export type TaskHistoryMetadataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | TaskHistoryMetadataValue[]
+  | { [key: string]: TaskHistoryMetadataValue };
 
 export type TaskHistoryChange = {
   field: string;

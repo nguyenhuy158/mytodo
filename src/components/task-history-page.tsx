@@ -5,6 +5,7 @@ import useSWR from "swr";
 import type {
   TaskHistoryAction,
   TaskHistoryEntry,
+  TaskHistoryMetadataValue,
   TaskHistoryPayload,
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
@@ -203,6 +204,26 @@ function HistoryEntryCard({ entry }: { entry: TaskHistoryEntry }) {
           Không có field diff, action này ghi nhận thao tác hệ thống.
         </p>
       )}
+
+      {entry.metadata ? (
+        <details className="mt-4 rounded-2xl bg-slate-950/95 p-3 text-sm text-slate-100">
+          <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.16em] text-teal-200">
+            Tracking chi tiết
+          </summary>
+          <div className="mt-3 grid gap-3">
+            {Object.entries(entry.metadata).map(([key, value]) => (
+              <div key={`${entry.id}-${key}`} className="min-w-0">
+                <p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-slate-400">
+                  {formatMetadataKey(key)}
+                </p>
+                <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/5 p-3 font-mono text-xs leading-5 text-slate-100">
+                  {formatMetadataValue(value)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </article>
   );
 }
@@ -283,6 +304,7 @@ function filterEntries(entries: TaskHistoryEntry[], query: string) {
       entry.summary,
       entry.target.taskTitle,
       entry.target.backupId,
+      stringifyMetadata(entry.metadata),
       ...entry.changes.flatMap((change) => [
         change.label,
         change.before,
@@ -336,6 +358,34 @@ function formatTarget(entry: TaskHistoryEntry) {
   }
 
   return "Sheet";
+}
+
+function formatMetadataKey(value: string) {
+  return value
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function formatMetadataValue(value: TaskHistoryMetadataValue): string {
+  if (typeof value === "string") {
+    return value || "Trống";
+  }
+
+  if (
+    value === null ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  return JSON.stringify(value, null, 2);
+}
+
+function stringifyMetadata(
+  metadata: TaskHistoryEntry["metadata"],
+): string | undefined {
+  return metadata ? JSON.stringify(metadata) : undefined;
 }
 
 function formatHistoryDate(value: string) {

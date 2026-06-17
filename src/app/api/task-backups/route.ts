@@ -4,6 +4,7 @@ import {
   createTaskBackupApplicationService,
   createTaskHistoryApplicationService,
 } from "@/infrastructure/app-services";
+import { getAuditRequestContext } from "@/lib/audit-request";
 import { isEmailAllowed } from "@/lib/auth-config";
 import { SheetConfigError } from "@/lib/google-sheets";
 import { TaskBackupStorageError } from "@/lib/task-backups";
@@ -46,18 +47,23 @@ export async function POST(request: NextRequest) {
 
     const payload = await readJson(request);
     const action = parseAction(payload);
+    const requestContext = getAuditRequestContext(request);
 
     if (action === "create") {
-      return createBackupResponse(payload, authResult.email);
+      return createBackupResponse(payload, authResult.email, requestContext);
     }
 
-    return restoreBackupResponse(payload, authResult.email);
+    return restoreBackupResponse(payload, authResult.email, requestContext);
   } catch (error) {
     return backupErrorResponse(error);
   }
 }
 
-async function createBackupResponse(payload: unknown, actorEmail: string) {
+async function createBackupResponse(
+  payload: unknown,
+  actorEmail: string,
+  requestContext: ReturnType<typeof getAuditRequestContext>,
+) {
   const mutationPayload = await createTaskBackupApplicationService().createBackup(
     getOptionalString(payload, "note"),
   );
@@ -66,13 +72,18 @@ async function createBackupResponse(payload: unknown, actorEmail: string) {
     createTaskHistoryApplicationService().recordBackupCreate({
       actorEmail,
       backup: mutationPayload.backup,
+      requestContext,
     }),
   );
 
   return backupMutationResponse(mutationPayload);
 }
 
-async function restoreBackupResponse(payload: unknown, actorEmail: string) {
+async function restoreBackupResponse(
+  payload: unknown,
+  actorEmail: string,
+  requestContext: ReturnType<typeof getAuditRequestContext>,
+) {
   const backupId = getRequiredString(payload, "backupId");
   const confirmation = getRequiredString(payload, "confirmation");
   const mutationPayload = await createTaskBackupApplicationService().restoreBackup({
@@ -84,6 +95,7 @@ async function restoreBackupResponse(payload: unknown, actorEmail: string) {
     createTaskHistoryApplicationService().recordBackupRestore({
       actorEmail,
       backup: mutationPayload.backup,
+      requestContext,
       safetyBackup: mutationPayload.safetyBackup,
     }),
   );
