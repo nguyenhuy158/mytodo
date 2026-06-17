@@ -9,10 +9,13 @@ import { mutate } from "swr";
 import type { TaskCreateInput, TasksPayload } from "@/lib/tasks";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { TaskBackupDialog } from "@/components/task-backup-dialog";
+import { TaskConfigDialog } from "@/components/task-config-dialog";
 import { TaskCreateDialog } from "@/components/task-create-dialog";
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
+const SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1Sv86oc9zXbvwSsD956uT4opSU8JqP04s/edit?gid=689856921#gid=689856921";
 const LAST_NAV_STORAGE_KEY = "mytodo:last-nav";
 
 type SiteHeaderProps = {
@@ -82,6 +85,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const desktopSettingsMenuRef = useRef<HTMLDivElement>(null);
   const mobileSettingsMenuRef = useRef<HTMLDivElement>(null);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -239,6 +243,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
               placement="desktop"
               showDataActions={false}
               onBackup={() => undefined}
+              onConfig={() => undefined}
               onRefresh={() => undefined}
               onSignOut={handleSignOut}
               onToggle={() => setIsSettingsOpen((current) => !current)}
@@ -306,6 +311,10 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
                   setIsSettingsOpen(false);
                   setIsBackupOpen(true);
                 }}
+                onConfig={() => {
+                  setIsSettingsOpen(false);
+                  setIsConfigOpen(true);
+                }}
                 onRefresh={() => {
                   setIsSettingsOpen(false);
                   handleRefresh();
@@ -335,6 +344,9 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
       {isBackupOpen ? (
         <TaskBackupDialog onClose={() => setIsBackupOpen(false)} />
       ) : null}
+      {isConfigOpen ? (
+        <TaskConfigDialog onClose={() => setIsConfigOpen(false)} />
+      ) : null}
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex items-end gap-2 lg:hidden">
         {userEmail ? (
           <SettingsMenu
@@ -347,6 +359,10 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             onBackup={() => {
               setIsSettingsOpen(false);
               setIsBackupOpen(true);
+            }}
+            onConfig={() => {
+              setIsSettingsOpen(false);
+              setIsConfigOpen(true);
             }}
             onRefresh={() => {
               setIsSettingsOpen(false);
@@ -376,6 +392,7 @@ function SettingsMenu({
   isSigningOut,
   menuRef,
   onBackup,
+  onConfig,
   onRefresh,
   onSignOut,
   onToggle,
@@ -388,6 +405,7 @@ function SettingsMenu({
   isSigningOut: boolean;
   menuRef: RefObject<HTMLDivElement | null>;
   onBackup: () => void;
+  onConfig: () => void;
   onRefresh: () => void;
   onSignOut: () => void;
   onToggle: () => void;
@@ -453,10 +471,20 @@ function SettingsMenu({
                   label="Backup / Restore"
                   onClick={onBackup}
                 />
+                <SettingsMenuItem
+                  icon="sliders"
+                  label="Config dữ liệu"
+                  onClick={onConfig}
+                />
                 <SettingsMenuLink
                   href="/history"
                   icon="clock"
                   label="History hoạt động"
+                />
+                <SettingsMenuExternalLink
+                  href={SHEET_URL}
+                  icon="externalLink"
+                  label="Mở Google Sheet"
                 />
               </div>
             </div>
@@ -543,6 +571,29 @@ function SettingsMenuLink({
       <AppIcon name={icon} className="size-4" />
       {label}
     </Link>
+  );
+}
+
+function SettingsMenuExternalLink({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: AppIconName;
+  label: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      role="menuitem"
+      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black text-slate-700 transition hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100"
+    >
+      <AppIcon name={icon} className="size-4" />
+      {label}
+    </a>
   );
 }
 

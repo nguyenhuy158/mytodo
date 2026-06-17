@@ -119,9 +119,60 @@ export type TaskHistoryAction =
   | "task.create"
   | "task.update"
   | "backup.create"
-  | "backup.restore";
+  | "backup.restore"
+  | "config.create"
+  | "config.update"
+  | "config.delete";
 
-export type TaskHistoryTargetType = "task" | "backup" | "sheet";
+export type TaskConfigCategory = "status" | "priority" | "system" | "tags";
+
+export type TaskConfigItem = {
+  id: string;
+  category: TaskConfigCategory;
+  value: string;
+  label: string;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type TaskConfigCreateInput = {
+  category: TaskConfigCategory;
+  value: string;
+  label?: string;
+  order?: number;
+  isActive?: boolean;
+  actorEmail: string;
+};
+
+export type TaskConfigUpdateInput = {
+  id: string;
+  updates: {
+    value?: string;
+    label?: string;
+    order?: number;
+    isActive?: boolean;
+  };
+  actorEmail: string;
+};
+
+export type TaskConfigDeleteInput = {
+  id: string;
+  actorEmail: string;
+};
+
+export type TaskConfigsPayload = {
+  configs: Record<TaskConfigCategory, TaskConfigItem[]>;
+  meta: {
+    updatedAt: string;
+    sheetTitle: string;
+    total: number;
+  };
+};
+
+export type TaskHistoryTargetType = "task" | "backup" | "sheet" | "config";
 
 export type TaskHistoryMetadataValue =
   | string
@@ -144,6 +195,9 @@ export type TaskHistoryTarget = {
   taskId?: string;
   taskTitle?: string;
   backupId?: string;
+  configId?: string;
+  configCategory?: TaskConfigCategory;
+  configValue?: string;
 };
 
 export type TaskHistoryEntry = {
@@ -171,6 +225,10 @@ export type TaskHistoryPayload = {
     total: number;
   };
 };
+
+export function formatTaskRowId(rowNumber: number) {
+  return `R${rowNumber}`;
+}
 
 export function normalizeStatus(value: string): TaskStatus {
   const normalized = value.trim().toLowerCase();

@@ -5,6 +5,7 @@ import ExcelJS from "exceljs";
 import { google } from "googleapis";
 import {
   daysBetween,
+  formatTaskRowId,
   normalizePriority,
   normalizeStatus,
   parseSheetDate,
@@ -1144,7 +1145,7 @@ function toTask(
   const status = normalizeStatus(getCell(row, indexes.status));
 
   return {
-    id: `row-${rowNumber}`,
+    id: formatTaskRowId(rowNumber),
     rowNumber,
     tags: getCell(row, indexes.tags),
     system: getCell(row, indexes.system),

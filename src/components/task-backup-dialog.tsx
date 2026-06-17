@@ -359,7 +359,7 @@ export function TaskBackupDialog({ onClose }: { onClose: () => void }) {
 
 async function fetchBackups(): Promise<TaskBackupsPayload> {
   const response = await fetch(TASK_BACKUPS_API_URL, { cache: "no-store" });
-  const payload = await response.json();
+  const payload = await readBackupResponse(response, "Không đọc được backup.");
 
   if (!response.ok) {
     throwBackupError(payload, "Không đọc được backup.");
@@ -378,13 +378,41 @@ async function postBackupAction(
     },
     body: JSON.stringify(body),
   });
-  const payload = await response.json();
+  const payload = await readBackupResponse(
+    response,
+    "Không thao tác được backup.",
+  );
 
   if (!response.ok) {
     throwBackupError(payload, "Không thao tác được backup.");
   }
 
   return payload as TaskBackupMutationPayload;
+}
+
+async function readBackupResponse(response: Response, fallbackMessage: string) {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw Object.assign(
+      new Error(
+        `${fallbackMessage} Server trả response không phải JSON (${response.status} ${response.statusText}).`,
+      ),
+      {
+        payload: {
+          error: {
+            message: text.slice(0, 240),
+          },
+        },
+      },
+    );
+  }
 }
 
 function throwBackupError(payload: unknown, fallbackMessage: string): never {

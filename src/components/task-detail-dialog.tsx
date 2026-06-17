@@ -6,11 +6,12 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
-import type {
-  SheetTask,
-  TaskPriority,
-  TaskStatus,
-  TaskUpdateInput,
+import {
+  formatTaskRowId,
+  type SheetTask,
+  type TaskPriority,
+  type TaskStatus,
+  type TaskUpdateInput,
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
 import { formatTaskTimeline } from "@/components/task-timeline";
@@ -57,6 +58,7 @@ export function TaskDetailDialog({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<TaskEditDraft>(() => toTaskEditDraft(task));
+  const taskRowId = formatTaskRowId(task.rowNumber);
   const timelineItems = [
     {
       label: "Date Received",
@@ -138,7 +140,7 @@ export function TaskDetailDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-teal-700">
-                Task detail · Row {task.rowNumber}
+                Task detail · {taskRowId}
               </p>
               <h2
                 id="task-detail-title"
@@ -251,8 +253,8 @@ export function TaskDetailDialog({
                     Sheet identity
                   </h3>
                   <div className="mt-4 grid gap-3">
-                    <DetailField label="Row number" value={String(task.rowNumber)} />
                     <DetailField label="Task ID" value={task.id} />
+                    <DetailField label="Sheet row" value={String(task.rowNumber)} />
                     <DetailField
                       label="System"
                       value={formatDetailValue(task.system)}

@@ -1,7 +1,9 @@
 import type { TaskHistoryRepository } from "@/domain/tasks/ports";
+import { formatTaskRowId } from "@/lib/tasks";
 import type {
   SheetTask,
   TaskBackupSummary,
+  TaskConfigItem,
   TaskCreateInput,
   TaskHistoryMetadataValue,
   TaskHistoryTarget,
@@ -84,7 +86,7 @@ export function createTaskHistoryService(
       return historyRepository.appendEntry({
         actorEmail,
         action: "task.update",
-        summary: `Update row ${input.rowNumber}${target.taskTitle ? `: ${target.taskTitle}` : ""}`,
+        summary: `Update ${formatTaskRowId(input.rowNumber)}${target.taskTitle ? `: ${target.taskTitle}` : ""}`,
         target: {
           ...target,
           rowNumber: input.rowNumber,
@@ -171,6 +173,73 @@ export function createTaskHistoryService(
         },
       });
     },
+    recordConfigCreate({
+      actorEmail,
+      item,
+    }: {
+      actorEmail: string;
+      item: TaskConfigItem;
+    }) {
+      return historyRepository.appendEntry({
+        actorEmail,
+        action: "config.create",
+        summary: `Tạo config ${item.category}: ${item.label}`,
+        target: getConfigTarget(item),
+        changes: buildConfigCreateChanges(item),
+        metadata: {
+          configSnapshot: buildConfigSnapshot(item),
+        },
+      });
+    },
+    recordConfigUpdate({
+      actorEmail,
+      afterItem,
+      beforeItem,
+    }: {
+      actorEmail: string;
+      afterItem: TaskConfigItem;
+      beforeItem?: TaskConfigItem;
+    }) {
+      const changes = buildConfigUpdateChanges(beforeItem, afterItem);
+
+      return historyRepository.appendEntry({
+        actorEmail,
+        action: "config.update",
+        summary: `Sửa config ${afterItem.category}: ${afterItem.label}`,
+        target: getConfigTarget(afterItem),
+        changes,
+        metadata: {
+          beforeSnapshot: beforeItem ? buildConfigSnapshot(beforeItem) : null,
+          afterSnapshot: buildConfigSnapshot(afterItem),
+          changedFieldCount: changes.length,
+        },
+      });
+    },
+    recordConfigDelete({
+      actorEmail,
+      item,
+    }: {
+      actorEmail: string;
+      item: TaskConfigItem;
+    }) {
+      return historyRepository.appendEntry({
+        actorEmail,
+        action: "config.delete",
+        summary: `Xóa config ${item.category}: ${item.label}`,
+        target: getConfigTarget(item),
+        changes: [
+          {
+            field: "deleted",
+            label: "Deleted",
+            before: "No",
+            after: "Yes",
+          },
+        ],
+        metadata: {
+          deletedSnapshot: buildConfigSnapshot(item),
+        },
+      });
+    },
   };
 }
 
@@ -235,6 +304,69 @@ function getTaskTarget(
     taskId: task?.id,
     taskTitle: task?.task || fallbackTitle?.trim() || undefined,
   };
+}
+
+function getConfigTarget(item: TaskConfigItem): TaskHistoryTarget {
+  return {
+    type: "config",
+    taskId: item.id,
+    taskTitle: item.label,
+    configId: item.id,
+    configCategory: item.category,
+    configValue: item.value,
+  };
+}
+
+function buildConfigCreateChanges(item: TaskConfigItem) {
+  return CONFIG_FIELDS.map((field) => ({
+    field,
+    label: CONFIG_FIELD_LABELS[field],
+    before: "",
+    after: formatConfigField(item, field),
+  }));
+}
+
+function buildConfigUpdateChanges(
+  beforeItem: TaskConfigItem | undefined,
+  afterItem: TaskConfigItem,
+) {
+  return CONFIG_FIELDS.flatMap((field) => {
+    const before = beforeItem ? formatConfigField(beforeItem, field) : "";
+    const after = formatConfigField(afterItem, field);
+
+    if (before === after) {
+      return [];
+    }
+
+    return [
+      {
+        field,
+        label: CONFIG_FIELD_LABELS[field],
+        before,
+        after,
+      },
+    ];
+  });
+}
+
+function buildConfigSnapshot(item: TaskConfigItem): TaskHistoryMetadataValue {
+  return {
+    id: item.id,
+    category: item.category,
+    value: item.value,
+    label: item.label,
+    order: item.order,
+    isActive: item.isActive,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    updatedBy: item.updatedBy,
+  };
+}
+
+function formatConfigField(item: TaskConfigItem, field: ConfigField) {
+  const value = item[field];
+
+  return typeof value === "boolean" ? (value ? "true" : "false") : String(value);
 }
 
 function buildTaskSnapshot(task?: SheetTask): TaskHistoryMetadataValue {
@@ -341,3 +473,15 @@ function shortId(value: string) {
 }
 
 const TASK_FIELDS = Object.keys(TASK_FIELD_LABELS) as TaskField[];
+const CONFIG_FIELD_LABELS = {
+  category: "Category",
+  value: "Value",
+  label: "Label",
+  order: "Order",
+  isActive: "Active",
+} satisfies Pick<
+  Record<keyof TaskConfigItem, string>,
+  "category" | "value" | "label" | "order" | "isActive"
+>;
+type ConfigField = keyof typeof CONFIG_FIELD_LABELS;
+const CONFIG_FIELDS = Object.keys(CONFIG_FIELD_LABELS) as ConfigField[];

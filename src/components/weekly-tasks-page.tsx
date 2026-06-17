@@ -8,12 +8,13 @@ import {
 } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
-import type {
-  SheetTask,
-  TaskPriority,
-  TaskStatus,
-  TaskUpdateInput,
-  TasksPayload,
+import {
+  formatTaskRowId,
+  type SheetTask,
+  type TaskPriority,
+  type TaskStatus,
+  type TaskUpdateInput,
+  type TasksPayload,
 } from "@/lib/tasks";
 import type {
   WeeklyAiSummaryItem,
@@ -184,7 +185,7 @@ export function WeeklyTasksPage() {
     });
 
     toast.promise(updatePromise, {
-      loading: `Đang cập nhật row ${input.rowNumber}...`,
+      loading: `Đang cập nhật ${formatTaskRowId(input.rowNumber)}...`,
       success: "Đã ghi dữ liệu về Google Sheet.",
       error: (updateError) =>
         updateError instanceof Error

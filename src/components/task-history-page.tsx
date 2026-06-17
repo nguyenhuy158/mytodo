@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import type {
-  TaskHistoryAction,
-  TaskHistoryEntry,
-  TaskHistoryMetadataValue,
-  TaskHistoryPayload,
+import {
+  formatTaskRowId,
+  type TaskHistoryAction,
+  type TaskHistoryEntry,
+  type TaskHistoryMetadataValue,
+  type TaskHistoryPayload,
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
 import { cn } from "@/lib/utils";
@@ -343,6 +344,18 @@ function getActionMeta(action: TaskHistoryAction) {
       label: "Restore",
       className: "bg-rose-100 text-rose-800",
     },
+    "config.create": {
+      label: "Tạo config",
+      className: "bg-teal-100 text-teal-800",
+    },
+    "config.update": {
+      label: "Sửa config",
+      className: "bg-cyan-100 text-cyan-800",
+    },
+    "config.delete": {
+      label: "Xóa config",
+      className: "bg-slate-100 text-slate-700",
+    },
   } satisfies Record<TaskHistoryAction, { label: string; className: string }>;
 
   return actionMap[action];
@@ -350,11 +363,19 @@ function getActionMeta(action: TaskHistoryAction) {
 
 function formatTarget(entry: TaskHistoryEntry) {
   if (entry.target.type === "task") {
-    return entry.target.rowNumber ? `Row ${entry.target.rowNumber}` : "Task";
+    return entry.target.rowNumber
+      ? formatTaskRowId(entry.target.rowNumber)
+      : "Task";
   }
 
   if (entry.target.backupId) {
     return `Backup ${entry.target.backupId.slice(0, 8)}`;
+  }
+
+  if (entry.target.type === "config") {
+    return entry.target.configCategory
+      ? `${entry.target.configCategory}: ${entry.target.configValue ?? "config"}`
+      : "Config";
   }
 
   return "Sheet";

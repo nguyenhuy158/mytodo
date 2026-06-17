@@ -289,7 +289,10 @@ function isTaskHistoryAction(value: unknown): value is TaskHistoryAction {
     value === "task.create" ||
     value === "task.update" ||
     value === "backup.create" ||
-    value === "backup.restore"
+    value === "backup.restore" ||
+    value === "config.create" ||
+    value === "config.update" ||
+    value === "config.delete"
   );
 }
 
@@ -305,7 +308,14 @@ function isTaskHistoryTarget(value: unknown): value is TaskHistoryTarget {
     (value.rowNumber === undefined || typeof value.rowNumber === "number") &&
     (value.taskId === undefined || typeof value.taskId === "string") &&
     (value.taskTitle === undefined || typeof value.taskTitle === "string") &&
-    (value.backupId === undefined || typeof value.backupId === "string")
+    (value.backupId === undefined || typeof value.backupId === "string") &&
+    (value.configId === undefined || typeof value.configId === "string") &&
+    (value.configCategory === undefined ||
+      value.configCategory === "status" ||
+      value.configCategory === "priority" ||
+      value.configCategory === "system" ||
+      value.configCategory === "tags") &&
+    (value.configValue === undefined || typeof value.configValue === "string")
   );
 }
 

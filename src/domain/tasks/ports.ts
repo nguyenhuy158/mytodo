@@ -4,12 +4,17 @@ import type {
   TaskBackupSnapshot,
   TaskBackupSummary,
   TaskCreateInput,
+  TaskConfigCreateInput,
+  TaskConfigDeleteInput,
+  TaskConfigItem,
+  TaskConfigUpdateInput,
   TaskHistoryCreateInput,
   TaskHistoryEntry,
   TaskUpdateInput,
   TasksPayload,
 } from "@/lib/tasks";
 import type { WeeklyAiSummaryPayload } from "@/lib/task-ai-types";
+import type { TaskAiChatPayload } from "@/lib/task-ai-types";
 
 export type TaskListOptions = {
   forceRefresh?: boolean;
@@ -38,6 +43,17 @@ export interface TaskHistoryRepository {
   listEntries(options?: { limit?: number }): Promise<TaskHistoryEntry[]>;
 }
 
+export interface TaskConfigRepository {
+  createConfig(input: TaskConfigCreateInput): Promise<TaskConfigItem>;
+  deleteConfig(input: TaskConfigDeleteInput): Promise<TaskConfigItem>;
+  listConfigs(): Promise<TaskConfigItem[]>;
+  updateConfig(input: TaskConfigUpdateInput): Promise<TaskConfigItem>;
+}
+
 export interface WeeklyTaskSummarizer {
   summarize(tasks: SheetTask[]): Promise<WeeklyAiSummaryPayload>;
+}
+
+export interface TaskQuestionAnswerer {
+  answer(question: string, tasks: SheetTask[]): Promise<TaskAiChatPayload>;
 }

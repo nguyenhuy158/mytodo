@@ -3,12 +3,13 @@
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
-import type {
-  SheetTask,
-  TaskPriority,
-  TaskStatus,
-  TaskUpdateInput,
-  TasksPayload,
+import {
+  formatTaskRowId,
+  type SheetTask,
+  type TaskPriority,
+  type TaskStatus,
+  type TaskUpdateInput,
+  type TasksPayload,
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
@@ -165,7 +166,8 @@ export function KanbanTasksPage() {
     });
 
     toast.promise(updatePromise, {
-      loading: messages?.loading ?? `Đang cập nhật row ${input.rowNumber}...`,
+      loading:
+        messages?.loading ?? `Đang cập nhật ${formatTaskRowId(input.rowNumber)}...`,
       success: messages?.success ?? "Đã ghi dữ liệu về Google Sheet.",
       error: (updateError) =>
         updateError instanceof Error
@@ -199,7 +201,7 @@ export function KanbanTasksPage() {
           },
         },
         {
-          loading: `Đang chuyển row ${task.rowNumber} sang ${nextStatus}...`,
+          loading: `Đang chuyển ${task.id} sang ${nextStatus}...`,
           success: `Đã chuyển sang ${nextStatus}.`,
         },
       );
@@ -591,7 +593,7 @@ function KanbanCard({
           isDone && "bg-slate-200/70 text-slate-400",
         )}
       >
-        <span>Row {task.rowNumber}</span>
+        <span>{task.id}</span>
         <span>Rec: {task.dateReceived || "No start"}</span>
         <span>Due: {task.deadline || "No deadline"}</span>
       </div>

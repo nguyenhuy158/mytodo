@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  Bot,
   CalendarClock,
   CalendarDays,
   CheckCircle2,
@@ -13,21 +14,28 @@ import {
   ListTodo,
   LogOut,
   Loader2,
+  MessageCircle,
   Settings,
   PencilLine,
   Plus,
   RefreshCw,
   RotateCcw,
+  Save,
   Search,
+  Send,
+  SlidersHorizontal,
   Sparkles,
   SquareKanban,
   TimerReset,
+  Trash2,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const icons = {
   alertCircle: AlertCircle,
+  bot: Bot,
   calendarClock: CalendarClock,
   calendarDays: CalendarDays,
   chart: ChartColumn,
@@ -42,14 +50,20 @@ const icons = {
   listTodo: ListTodo,
   loader: Loader2,
   logOut: LogOut,
+  messageCircle: MessageCircle,
   pencil: PencilLine,
   plus: Plus,
   refresh: RefreshCw,
   settings: Settings,
   restore: RotateCcw,
+  save: Save,
   search: Search,
+  send: Send,
+  sliders: SlidersHorizontal,
   sparkles: Sparkles,
   timerReset: TimerReset,
+  trash: Trash2,
+  x: X,
 } satisfies Record<string, LucideIcon>;
 
 export type AppIconName = keyof typeof icons;

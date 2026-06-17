@@ -16,12 +16,13 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import useSWR from "swr";
-import type {
-  SheetTask,
-  TaskPriority,
-  TaskStatus,
-  TaskUpdateInput,
-  TasksPayload,
+import {
+  formatTaskRowId,
+  type SheetTask,
+  type TaskPriority,
+  type TaskStatus,
+  type TaskUpdateInput,
+  type TasksPayload,
 } from "@/lib/tasks";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
@@ -32,8 +33,6 @@ import {
 import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
 
-const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1Sv86oc9zXbvwSsD956uT4opSU8JqP04s/edit?gid=689856921#gid=689856921";
 const TASKS_API_URL = "/api/tasks";
 const TASK_BOARD_SELECTION_STORAGE_KEY = "mytodo:selected-task:/tasks";
 const TASKS_PER_PAGE = 12;
@@ -238,7 +237,7 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
     });
 
     toast.promise(updatePromise, {
-      loading: `Đang cập nhật row ${input.rowNumber}...`,
+      loading: `Đang cập nhật ${formatTaskRowId(input.rowNumber)}...`,
       success: "Đã ghi dữ liệu về Google Sheet.",
       error: (updateError) =>
         updateError instanceof Error
@@ -356,7 +355,7 @@ function MetricGrid({
 
 function OverviewShortcuts() {
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <OverviewShortcutCard
         description="Xem status, priority, workload và deadline health."
         href="/charts"
@@ -382,27 +381,6 @@ function OverviewShortcuts() {
         href="/history"
         label="History"
       />
-      <a
-        href={SHEET_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="group rounded-[1.6rem] border border-white/70 bg-slate-950 p-5 text-white shadow-xl shadow-slate-900/10 transition hover:-translate-y-1 hover:bg-teal-950"
-      >
-        <p className="text-sm font-black uppercase tracking-[0.22em] text-white/45">
-          Google Sheet
-        </p>
-        <h2 className="mt-4 text-2xl font-black tracking-[-0.04em]">Mở Sheet</h2>
-        <p className="mt-3 text-sm leading-6 text-white/60">
-          Đi thẳng tới nguồn dữ liệu gốc.
-        </p>
-        <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-amber-200">
-          Open
-          <AppIcon
-            name="externalLink"
-            className="size-4 transition group-hover:translate-x-1"
-          />
-        </span>
-      </a>
     </section>
   );
 }
@@ -507,15 +485,6 @@ function TaskBoardSection({
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white/85 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 sm:w-72"
             />
           </label>
-          <a
-            href={SHEET_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-teal-900"
-          >
-            Mở Sheet
-            <AppIcon name="externalLink" className="size-4" />
-          </a>
         </div>
       </div>
 
@@ -1119,7 +1088,7 @@ function TaskRow({
             {isEditing ? "Đóng form" : "Sửa Sheet"}
           </button>
           <span className="text-xs font-bold text-slate-400">
-            Row {task.rowNumber}
+            {task.id}
           </span>
           <span className="text-xs font-black text-teal-700">
             Click để xem chi tiết

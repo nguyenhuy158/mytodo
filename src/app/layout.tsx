@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Mono, Space_Grotesk } from "next/font/google";
 import { auth } from "@/auth";
+import { AiTaskChat } from "@/components/ai-task-chat";
 import { AppToaster } from "@/components/app-toaster";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import "./globals.css";
@@ -37,6 +38,7 @@ export default async function RootLayout({
         <SiteHeader userEmail={session?.user?.email ?? null} />
         <div className="flex-1">{children}</div>
         <SiteFooter />
+        {session?.user?.email ? <AiTaskChat /> : null}
         <AppToaster />
       </body>
     </html>

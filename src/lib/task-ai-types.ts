@@ -35,3 +35,31 @@ export type WeeklyAiSummaryPayload = {
   };
   summary: WeeklyAiSummary;
 };
+
+export type TaskAiChatRelatedTask = {
+  deadline: string;
+  priority: string;
+  reason: string;
+  status: string;
+  taskId: string | null;
+  title: string;
+};
+
+export type TaskAiChatPayload = {
+  answer: string;
+  meta: {
+    generatedAt: string;
+    includedTaskCount: number;
+    model: string;
+    modelVersion?: string;
+    responseId?: string;
+    sourceTaskCount: number;
+    usageMetadata?: {
+      candidatesTokenCount?: number;
+      promptTokenCount?: number;
+      totalTokenCount?: number;
+    };
+  };
+  relatedTasks: TaskAiChatRelatedTask[];
+  suggestedNextActions: string[];
+};
