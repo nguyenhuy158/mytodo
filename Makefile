@@ -4,7 +4,7 @@ NODE ?= node
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev start lint build check audit env-check docker-build docker-run clean
+.PHONY: help install dev start lint build test check audit env-check docker-build docker-run clean
 
 help:
 	@printf "%s\n" "Available targets:"
@@ -13,7 +13,8 @@ help:
 	@printf "%s\n" "  make start      Start production server after build"
 	@printf "%s\n" "  make lint       Run ESLint"
 	@printf "%s\n" "  make build      Build Next.js app"
-	@printf "%s\n" "  make check      Run env-check, lint, and build"
+	@printf "%s\n" "  make test       Run build-config tests (node --test)"
+	@printf "%s\n" "  make check      Run env-check, lint, test, and build"
 	@printf "%s\n" "  make audit      Run pnpm audit at moderate level"
 	@printf "%s\n" "  make env-check  Validate required local env values"
 	@printf "%s\n" "  make docker-build Build production Docker image"
@@ -35,7 +36,10 @@ lint:
 build:
 	$(PNPM) run build
 
-check: env-check lint build
+test:
+	$(PNPM) run test
+
+check: env-check lint test build
 
 audit:
 	$(PNPM) audit --audit-level=moderate

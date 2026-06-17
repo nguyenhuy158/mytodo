@@ -8,7 +8,8 @@
     "build": "next build",
     "build:docker": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test scripts/build-config.test.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
