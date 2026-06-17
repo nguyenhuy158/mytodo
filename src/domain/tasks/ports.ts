@@ -4,6 +4,8 @@ import type {
   TaskBackupSnapshot,
   TaskBackupSummary,
   TaskCreateInput,
+  TaskHistoryCreateInput,
+  TaskHistoryEntry,
   TaskUpdateInput,
   TasksPayload,
 } from "@/lib/tasks";
@@ -29,6 +31,11 @@ export interface TaskBackupRepository {
     note?: string,
   ): Promise<TaskBackupSummary>;
   toBackupSummary(record: TaskBackupRecord): TaskBackupSummary;
+}
+
+export interface TaskHistoryRepository {
+  appendEntry(input: TaskHistoryCreateInput): Promise<TaskHistoryEntry>;
+  listEntries(options?: { limit?: number }): Promise<TaskHistoryEntry[]>;
 }
 
 export interface WeeklyTaskSummarizer {

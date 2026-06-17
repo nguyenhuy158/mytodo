@@ -6,11 +6,13 @@ import {
   useMemo,
   useState,
 } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 import type {
   SheetTask,
   TaskPriority,
   TaskStatus,
+  TaskUpdateInput,
   TasksPayload,
 } from "@/lib/tasks";
 import type {
@@ -105,11 +107,12 @@ const requestWeekSummary = async (): Promise<WeeklyAiSummaryPayload> => {
 export function WeeklyTasksPage() {
   const [query, setQuery] = useState("");
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const [savingRowNumber, setSavingRowNumber] = useState<number | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryPayload, setSummaryPayload] =
     useState<WeeklyAiSummaryPayload | null>(null);
   const deferredQuery = useDeferredValue(query);
-  const { data, error, isLoading } = useSWR<TasksPayload>(
+  const { data, error, isLoading, mutate } = useSWR<TasksPayload>(
     TASKS_API_URL,
     fetcher,
     {
@@ -156,6 +159,46 @@ export function WeeklyTasksPage() {
     startTransition(() => {
       setQuery(nextQuery);
     });
+  };
+
+  const handleTaskUpdate = async (input: TaskUpdateInput) => {
+    setSavingRowNumber(input.rowNumber);
+
+    const updatePromise = fetch(TASKS_API_URL, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }).then(async (response) => {
+      const payload = await response.json();
+
+      if (!response.ok) {
+        const message =
+          payload.error?.message ?? "Không cập nhật được Google Sheet.";
+
+        throw Object.assign(new Error(message), { payload });
+      }
+
+      return payload as TasksPayload;
+    });
+
+    toast.promise(updatePromise, {
+      loading: `Đang cập nhật row ${input.rowNumber}...`,
+      success: "Đã ghi dữ liệu về Google Sheet.",
+      error: (updateError) =>
+        updateError instanceof Error
+          ? updateError.message
+          : "Không cập nhật được Google Sheet.",
+    });
+
+    try {
+      const payload = await updatePromise;
+
+      await mutate(payload, { revalidate: false });
+    } finally {
+      setSavingRowNumber(null);
+    }
   };
 
   const handleWeekSummaryClick = async () => {
@@ -284,8 +327,10 @@ export function WeeklyTasksPage() {
 
       {selectedTask ? (
         <TaskDetailDialog
+          isSaving={savingRowNumber === selectedTask.rowNumber}
           task={selectedTask}
           onClose={() => setSelectedTaskId(null)}
+          onTaskUpdate={handleTaskUpdate}
         />
       ) : null}
     </main>

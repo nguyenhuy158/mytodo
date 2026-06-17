@@ -1,8 +1,12 @@
 import { auth } from "@/auth";
-import { createTaskApplicationService } from "@/infrastructure/app-services";
+import {
+  createTaskApplicationService,
+  createTaskHistoryApplicationService,
+} from "@/infrastructure/app-services";
 import { isEmailAllowed } from "@/lib/auth-config";
 import { SheetConfigError } from "@/lib/google-sheets";
 import type {
+  SheetTask,
   TaskCreateInput,
   TaskPriority,
   TaskStatus,
@@ -39,10 +43,10 @@ class RequestValidationError extends Error {
 
 export async function GET(request: NextRequest) {
   try {
-    const authError = await getTaskAuthErrorResponse();
+    const authResult = await getTaskAuthResult();
 
-    if (authError) {
-      return authError;
+    if ("response" in authResult) {
+      return authResult.response;
     }
 
     const forceRefresh = request.nextUrl.searchParams.get("force") === "1";
@@ -57,15 +61,31 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const authError = await getTaskAuthErrorResponse();
+    const authResult = await getTaskAuthResult();
 
-    if (authError) {
-      return authError;
+    if ("response" in authResult) {
+      return authResult.response;
     }
 
     const input = parseTaskUpdateInput(await readJson(request));
     const taskService = createTaskApplicationService();
+    const beforePayload = await taskService.listTasks({ forceRefresh: true });
+    const beforeTask = beforePayload.tasks.find(
+      (task) => task.rowNumber === input.rowNumber,
+    );
     const payload = await taskService.updateTask(input);
+    const afterTask = payload.tasks.find(
+      (task) => task.rowNumber === input.rowNumber,
+    );
+
+    await recordTaskHistory(() =>
+      createTaskHistoryApplicationService().recordTaskUpdate({
+        actorEmail: authResult.email,
+        input,
+        beforeTask,
+        afterTask,
+      }),
+    );
 
     return taskResponse(payload);
   } catch (error) {
@@ -75,15 +95,24 @@ export async function PATCH(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authError = await getTaskAuthErrorResponse();
+    const authResult = await getTaskAuthResult();
 
-    if (authError) {
-      return authError;
+    if ("response" in authResult) {
+      return authResult.response;
     }
 
     const input = parseTaskCreateInput(await readJson(request));
     const taskService = createTaskApplicationService();
     const payload = await taskService.createTask(input);
+    const createdTask = findCreatedTask(payload.tasks, input);
+
+    await recordTaskHistory(() =>
+      createTaskHistoryApplicationService().recordTaskCreate({
+        actorEmail: authResult.email,
+        input,
+        createdTask,
+      }),
+    );
 
     return taskResponse(payload);
   } catch (error) {
@@ -100,27 +129,31 @@ function taskResponse(payload: TasksPayload) {
   });
 }
 
-async function getTaskAuthErrorResponse() {
+async function getTaskAuthResult() {
   const session = await auth();
   const email = session?.user?.email;
 
   if (!email) {
-    return taskAuthErrorResponse(
-      "AUTH_REQUIRED",
-      "Bạn cần đăng nhập bằng Google.",
-      401,
-    );
+    return {
+      response: taskAuthErrorResponse(
+        "AUTH_REQUIRED",
+        "Bạn cần đăng nhập bằng Google.",
+        401,
+      ),
+    };
   }
 
   if (!isEmailAllowed(email)) {
-    return taskAuthErrorResponse(
-      "AUTH_FORBIDDEN",
-      "Email này không được phép xem dữ liệu.",
-      403,
-    );
+    return {
+      response: taskAuthErrorResponse(
+        "AUTH_FORBIDDEN",
+        "Email này không được phép xem dữ liệu.",
+        403,
+      ),
+    };
   }
 
-  return null;
+  return { email };
 }
 
 function taskAuthErrorResponse(code: string, message: string, status: number) {
@@ -140,6 +173,22 @@ function taskAuthErrorResponse(code: string, message: string, status: number) {
       },
     },
   );
+}
+
+async function recordTaskHistory(operation: () => Promise<unknown>) {
+  try {
+    await operation();
+  } catch (error) {
+    console.error("Task history write failed", error);
+  }
+}
+
+function findCreatedTask(tasks: SheetTask[], input: TaskCreateInput) {
+  const normalizedTask = input.task.trim();
+
+  return [...tasks]
+    .filter((task) => task.task.trim() === normalizedTask)
+    .sort((left, right) => right.rowNumber - left.rowNumber)[0];
 }
 
 function taskErrorResponse(error: unknown, action: "read" | "write") {
@@ -259,6 +308,22 @@ function parseTaskUpdateInput(payload: unknown): TaskUpdateInput {
 
   const updates: TaskUpdateInput["updates"] = {};
 
+  if ("tags" in rawUpdates) {
+    updates.tags = getUpdateString(rawUpdates.tags, "tags");
+  }
+
+  if ("system" in rawUpdates) {
+    updates.system = getUpdateString(rawUpdates.system, "system");
+  }
+
+  if ("task" in rawUpdates) {
+    updates.task = getUpdateRequiredString(rawUpdates.task, "task");
+  }
+
+  if ("details" in rawUpdates) {
+    updates.details = getUpdateString(rawUpdates.details, "details");
+  }
+
   if ("status" in rawUpdates) {
     if (!isTaskStatus(rawUpdates.status)) {
       throw new RequestValidationError("status không hợp lệ.");
@@ -275,22 +340,24 @@ function parseTaskUpdateInput(payload: unknown): TaskUpdateInput {
     updates.priority = rawUpdates.priority;
   }
 
-  if ("actualDate" in rawUpdates) {
-    if (!isOptionalISODate(rawUpdates.actualDate)) {
-      throw new RequestValidationError(
-        "actualDate phải rỗng hoặc theo format YYYY-MM-DD.",
-      );
-    }
+  if ("timeline" in rawUpdates) {
+    updates.timeline = getUpdateTimeline(rawUpdates.timeline, "timeline");
+  }
 
-    updates.actualDate = rawUpdates.actualDate;
+  if ("dateReceived" in rawUpdates) {
+    updates.dateReceived = getUpdateISODate(rawUpdates.dateReceived, "dateReceived");
+  }
+
+  if ("deadline" in rawUpdates) {
+    updates.deadline = getUpdateISODate(rawUpdates.deadline, "deadline");
+  }
+
+  if ("actualDate" in rawUpdates) {
+    updates.actualDate = getUpdateISODate(rawUpdates.actualDate, "actualDate");
   }
 
   if ("note" in rawUpdates) {
-    if (typeof rawUpdates.note !== "string") {
-      throw new RequestValidationError("note phải là chuỗi.");
-    }
-
-    updates.note = rawUpdates.note;
+    updates.note = getUpdateString(rawUpdates.note, "note");
   }
 
   if (!Object.keys(updates).length) {
@@ -325,6 +392,24 @@ function getOptionalString(payload: Record<string, unknown>, key: string) {
   }
 
   return value.trim();
+}
+
+function getUpdateString(value: unknown, key: string) {
+  if (typeof value !== "string") {
+    throw new RequestValidationError(`${key} phải là chuỗi.`);
+  }
+
+  return value.trim();
+}
+
+function getUpdateRequiredString(value: unknown, key: string) {
+  const normalized = getUpdateString(value, key);
+
+  if (!normalized) {
+    throw new RequestValidationError(`${key} không được để trống.`);
+  }
+
+  return normalized;
 }
 
 function getOptionalPriority(payload: Record<string, unknown>, key: string) {
@@ -399,6 +484,40 @@ function getOptionalTimeline(payload: Record<string, unknown>, key: string) {
   }
 
   return normalized;
+}
+
+function getUpdateTimeline(value: unknown, key: string) {
+  const text = typeof value === "number" ? String(value) : value;
+
+  if (typeof text !== "string") {
+    throw new RequestValidationError(
+      `${key} phải rỗng hoặc là số ngày không âm.`,
+    );
+  }
+
+  const normalized = text.trim().replace(",", ".");
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (!TIMELINE_DAYS_PATTERN.test(normalized)) {
+    throw new RequestValidationError(
+      `${key} phải rỗng hoặc là số ngày không âm.`,
+    );
+  }
+
+  return normalized;
+}
+
+function getUpdateISODate(value: unknown, key: string) {
+  if (!isOptionalISODate(value)) {
+    throw new RequestValidationError(
+      `${key} phải rỗng hoặc theo format YYYY-MM-DD.`,
+    );
+  }
+
+  return value.trim();
 }
 
 function getTodayISODate() {

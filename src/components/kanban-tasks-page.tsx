@@ -7,6 +7,7 @@ import type {
   SheetTask,
   TaskPriority,
   TaskStatus,
+  TaskUpdateInput,
   TasksPayload,
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
@@ -135,27 +136,21 @@ export function KanbanTasksPage() {
     });
   };
 
-  const handleStatusUpdate = async (
-    task: SheetTask,
-    nextStatus: TaskStatus,
+  const handleTaskUpdate = async (
+    input: TaskUpdateInput,
+    messages?: {
+      loading: string;
+      success: string;
+    },
   ) => {
-    if (task.status === nextStatus || savingRowNumber !== null) {
-      return;
-    }
-
-    setSavingRowNumber(task.rowNumber);
+    setSavingRowNumber(input.rowNumber);
 
     const updatePromise = fetch(TASKS_API_URL, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        rowNumber: task.rowNumber,
-        updates: {
-          status: nextStatus,
-        },
-      }),
+      body: JSON.stringify(input),
     }).then(async (response) => {
       const payload = await response.json();
 
@@ -170,8 +165,8 @@ export function KanbanTasksPage() {
     });
 
     toast.promise(updatePromise, {
-      loading: `Đang chuyển row ${task.rowNumber} sang ${nextStatus}...`,
-      success: `Đã chuyển sang ${nextStatus}.`,
+      loading: messages?.loading ?? `Đang cập nhật row ${input.rowNumber}...`,
+      success: messages?.success ?? "Đã ghi dữ liệu về Google Sheet.",
       error: (updateError) =>
         updateError instanceof Error
           ? updateError.message
@@ -184,6 +179,31 @@ export function KanbanTasksPage() {
       await mutate(payload, { revalidate: false });
     } finally {
       setSavingRowNumber(null);
+    }
+  };
+
+  const handleStatusUpdate = async (
+    task: SheetTask,
+    nextStatus: TaskStatus,
+  ) => {
+    if (task.status === nextStatus || savingRowNumber !== null) {
+      return;
+    }
+
+    try {
+      await handleTaskUpdate(
+        {
+          rowNumber: task.rowNumber,
+          updates: {
+            status: nextStatus,
+          },
+        },
+        {
+          loading: `Đang chuyển row ${task.rowNumber} sang ${nextStatus}...`,
+          success: `Đã chuyển sang ${nextStatus}.`,
+        },
+      );
+    } finally {
       setDraggingRowNumber(null);
       setDropTargetStatus(null);
     }
@@ -343,8 +363,10 @@ export function KanbanTasksPage() {
 
       {selectedTask ? (
         <TaskDetailDialog
+          isSaving={savingRowNumber === selectedTask.rowNumber}
           task={selectedTask}
           onClose={() => setSelectedTaskId(null)}
+          onTaskUpdate={handleTaskUpdate}
         />
       ) : null}
     </main>

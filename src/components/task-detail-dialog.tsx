@@ -1,17 +1,62 @@
 "use client";
 
-import type { ReactNode } from "react";
-import type { SheetTask, TaskPriority, TaskStatus } from "@/lib/tasks";
+import {
+  useState,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
+import type {
+  SheetTask,
+  TaskPriority,
+  TaskStatus,
+  TaskUpdateInput,
+} from "@/lib/tasks";
+import { AppIcon } from "@/components/app-icon";
 import { formatTaskTimeline } from "@/components/task-timeline";
 import { cn } from "@/lib/utils";
 
+const EDITABLE_PRIORITIES: TaskPriority[] = ["High", "Medium", "Low", "Unknown"];
+const EDITABLE_STATUSES: TaskStatus[] = [
+  "Not Started",
+  "In Progress",
+  "Blocked",
+  "Done",
+  "Unknown",
+];
+
+type TaskEditDraft = {
+  tags: string;
+  system: string;
+  task: string;
+  details: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  timeline: string;
+  dateReceived: string;
+  deadline: string;
+  actualDate: string;
+  note: string;
+};
+
+type TaskEditDraftChange = <Key extends keyof TaskEditDraft>(
+  key: Key,
+  value: TaskEditDraft[Key],
+) => void;
+
 export function TaskDetailDialog({
+  isSaving,
   task,
   onClose,
+  onTaskUpdate,
 }: {
+  isSaving: boolean;
   task: SheetTask;
   onClose: () => void;
+  onTaskUpdate: (input: TaskUpdateInput) => Promise<void>;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<TaskEditDraft>(() => toTaskEditDraft(task));
   const timelineItems = [
     {
       label: "Date Received",
@@ -30,10 +75,56 @@ export function TaskDetailDialog({
     },
   ];
 
+  const updateDraft: TaskEditDraftChange = (key, value) => {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      [key]: value,
+    }));
+  };
+
+  const handleClose = () => {
+    if (!isSaving) {
+      onClose();
+    }
+  };
+
+  const handleOpenEditor = () => {
+    setDraft(toTaskEditDraft(task));
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setDraft(toTaskEditDraft(task));
+    setIsEditing(false);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    await onTaskUpdate({
+      rowNumber: task.rowNumber,
+      updates: {
+        tags: draft.tags,
+        system: draft.system,
+        task: draft.task,
+        details: draft.details,
+        priority: draft.priority,
+        status: draft.status,
+        timeline: draft.timeline,
+        dateReceived: draft.dateReceived,
+        deadline: draft.deadline,
+        actualDate: draft.actualDate,
+        note: draft.note,
+      },
+    });
+
+    setIsEditing(false);
+  };
+
   return (
     <div
       role="presentation"
-      onClick={onClose}
+      onClick={handleClose}
       className="fixed inset-0 z-[80] bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6"
     >
       <section
@@ -45,7 +136,7 @@ export function TaskDetailDialog({
       >
         <div className="border-b border-slate-200 bg-white/70 p-5">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-teal-700">
                 Task detail · Row {task.rowNumber}
               </p>
@@ -56,13 +147,25 @@ export function TaskDetailDialog({
                 {task.task || "Untitled task"}
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
-            >
-              Đóng
-            </button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={isEditing ? handleCancelEdit : handleOpenEditor}
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-black text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 disabled:cursor-wait disabled:opacity-60"
+              >
+                <AppIcon name="pencil" className="size-4" />
+                {isEditing ? "Hủy edit" : "Edit"}
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={isSaving}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 disabled:cursor-wait disabled:opacity-60"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -75,84 +178,319 @@ export function TaskDetailDialog({
         </div>
 
         <div className="overflow-y-auto p-5">
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <section className="grid gap-4">
-              <DetailBlock title="Task">
-                <p className="whitespace-pre-wrap text-base font-bold leading-7 text-slate-900">
-                  {formatDetailValue(task.task)}
-                </p>
-              </DetailBlock>
+          {isEditing ? (
+            <TaskEditForm
+              draft={draft}
+              isSaving={isSaving}
+              onCancel={handleCancelEdit}
+              onDraftChange={updateDraft}
+              onSubmit={handleSubmit}
+            />
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+              <section className="grid gap-4">
+                <DetailBlock title="Task">
+                  <p className="whitespace-pre-wrap text-base font-bold leading-7 text-slate-900">
+                    {formatDetailValue(task.task)}
+                  </p>
+                </DetailBlock>
 
-              <DetailBlock title="Details">
-                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                  {formatDetailValue(task.details)}
-                </p>
-              </DetailBlock>
+                <DetailBlock title="Details">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {formatDetailValue(task.details)}
+                  </p>
+                </DetailBlock>
 
-              <DetailBlock title="Note">
-                <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                  {formatDetailValue(task.note)}
-                </p>
-              </DetailBlock>
-            </section>
+                <DetailBlock title="Note">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                    {formatDetailValue(task.note)}
+                  </p>
+                </DetailBlock>
+              </section>
 
-            <aside className="grid content-start gap-4">
-              <section className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4">
-                <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-                  Timeline
-                </h3>
-                <div className="mt-4 grid gap-3">
-                  {timelineItems.map((item) => (
+              <aside className="grid content-start gap-4">
+                <section className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4">
+                  <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                    Timeline
+                  </h3>
+                  <div className="mt-4 grid gap-3">
+                    {timelineItems.map((item) => (
+                      <DetailField
+                        key={item.label}
+                        label={item.label}
+                        value={formatDetailDate(item.raw, item.iso)}
+                      />
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4">
+                  <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                    Status health
+                  </h3>
+                  <div className="mt-4 grid gap-3">
                     <DetailField
-                      key={item.label}
-                      label={item.label}
-                      value={formatDetailDate(item.raw, item.iso)}
+                      label="Timeline"
+                      value={formatDetailValue(formatTaskTimeline(task))}
                     />
-                  ))}
-                </div>
-              </section>
+                    <DetailField
+                      label="Days left"
+                      value={formatDaysLeft(task.daysLeft, task.status)}
+                    />
+                    <DetailField
+                      label="Overdue"
+                      value={task.isOverdue ? "Yes" : "No"}
+                    />
+                    <DetailField label="Status" value={task.status} />
+                    <DetailField label="Priority" value={task.priority} />
+                  </div>
+                </section>
 
-              <section className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4">
-                <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-                  Status health
-                </h3>
-                <div className="mt-4 grid gap-3">
-                  <DetailField
-                    label="Timeline"
-                    value={formatDetailValue(formatTaskTimeline(task))}
-                  />
-                  <DetailField
-                    label="Days left"
-                    value={formatDaysLeft(task.daysLeft, task.status)}
-                  />
-                  <DetailField
-                    label="Overdue"
-                    value={task.isOverdue ? "Yes" : "No"}
-                  />
-                  <DetailField label="Status" value={task.status} />
-                  <DetailField label="Priority" value={task.priority} />
-                </div>
-              </section>
-
-              <section className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4">
-                <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-                  Sheet identity
-                </h3>
-                <div className="mt-4 grid gap-3">
-                  <DetailField label="Row number" value={String(task.rowNumber)} />
-                  <DetailField label="Task ID" value={task.id} />
-                  <DetailField
-                    label="System"
-                    value={formatDetailValue(task.system)}
-                  />
-                  <DetailField label="Tags" value={formatDetailValue(task.tags)} />
-                </div>
-              </section>
-            </aside>
-          </div>
+                <section className="rounded-[1.5rem] border border-white/80 bg-white/80 p-4">
+                  <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
+                    Sheet identity
+                  </h3>
+                  <div className="mt-4 grid gap-3">
+                    <DetailField label="Row number" value={String(task.rowNumber)} />
+                    <DetailField label="Task ID" value={task.id} />
+                    <DetailField
+                      label="System"
+                      value={formatDetailValue(task.system)}
+                    />
+                    <DetailField label="Tags" value={formatDetailValue(task.tags)} />
+                  </div>
+                </section>
+              </aside>
+            </div>
+          )}
         </div>
       </section>
     </div>
+  );
+}
+
+function TaskEditForm({
+  draft,
+  isSaving,
+  onCancel,
+  onDraftChange,
+  onSubmit,
+}: {
+  draft: TaskEditDraft;
+  isSaving: boolean;
+  onCancel: () => void;
+  onDraftChange: TaskEditDraftChange;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4">
+      <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        Task *
+        <input
+          required
+          value={draft.task}
+          onChange={(event) => onDraftChange("task", event.target.value)}
+          disabled={isSaving}
+          className="h-12 rounded-2xl border border-white bg-white px-4 text-base font-bold normal-case tracking-normal text-slate-900 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+        />
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormTextInput
+          disabled={isSaving}
+          label="System"
+          value={draft.system}
+          onChange={(value) => onDraftChange("system", value)}
+        />
+        <FormTextInput
+          disabled={isSaving}
+          label="Tags"
+          value={draft.tags}
+          onChange={(value) => onDraftChange("tags", value)}
+        />
+        <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+          Priority
+          <select
+            value={draft.priority}
+            onChange={(event) =>
+              onDraftChange("priority", event.target.value as TaskPriority)
+            }
+            disabled={isSaving}
+            className="h-12 rounded-2xl border border-white bg-white px-4 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+          >
+            {EDITABLE_PRIORITIES.map((priority) => (
+              <option key={priority} value={priority}>
+                {priority}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+          Status
+          <select
+            value={draft.status}
+            onChange={(event) =>
+              onDraftChange("status", event.target.value as TaskStatus)
+            }
+            disabled={isSaving}
+            className="h-12 rounded-2xl border border-white bg-white px-4 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+          >
+            {EDITABLE_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </label>
+        <FormTextInput
+          disabled={isSaving}
+          inputMode="decimal"
+          label="Timeline (ngày)"
+          value={draft.timeline}
+          onChange={(value) => onDraftChange("timeline", value)}
+        />
+        <FormDateInput
+          disabled={isSaving}
+          label="Date Received"
+          value={draft.dateReceived}
+          onChange={(value) => onDraftChange("dateReceived", value)}
+        />
+        <FormDateInput
+          disabled={isSaving}
+          label="Deadline"
+          value={draft.deadline}
+          onChange={(value) => onDraftChange("deadline", value)}
+        />
+        <FormDateInput
+          disabled={isSaving}
+          label="Actual Date"
+          value={draft.actualDate}
+          onChange={(value) => onDraftChange("actualDate", value)}
+        />
+      </div>
+
+      <FormTextarea
+        disabled={isSaving}
+        label="Details"
+        rows={5}
+        value={draft.details}
+        onChange={(value) => onDraftChange("details", value)}
+      />
+      <FormTextarea
+        disabled={isSaving}
+        label="Note"
+        rows={4}
+        value={draft.note}
+        onChange={(value) => onDraftChange("note", value)}
+      />
+
+      <div className="flex flex-col gap-3 rounded-[1.5rem] border border-teal-100 bg-teal-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-bold leading-6 text-teal-900">
+          Lưu sẽ ghi trực tiếp vào row hiện tại trên Google Sheet.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 transition hover:border-slate-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2 text-sm font-black text-white transition hover:bg-teal-900 disabled:cursor-wait disabled:opacity-70"
+          >
+            {isSaving ? (
+              <AppIcon name="loader" className="size-4 animate-spin" />
+            ) : (
+              <AppIcon name="pencil" className="size-4" />
+            )}
+            Lưu task
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function FormTextInput({
+  disabled,
+  inputMode,
+  label,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+      {label}
+      <input
+        inputMode={inputMode}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className="h-12 rounded-2xl border border-white bg-white px-4 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+      />
+    </label>
+  );
+}
+
+function FormDateInput({
+  disabled,
+  label,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+      {label}
+      <input
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className="h-12 rounded-2xl border border-white bg-white px-4 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+      />
+    </label>
+  );
+}
+
+function FormTextarea({
+  disabled,
+  label,
+  rows,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  label: string;
+  rows: number;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+      {label}
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        rows={rows}
+        className="resize-y rounded-2xl border border-white bg-white px-4 py-3 text-sm font-medium normal-case leading-6 tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+      />
+    </label>
   );
 }
 
@@ -241,6 +579,22 @@ function PriorityPill({ priority }: { priority: TaskPriority }) {
 
 function formatDetailValue(value: string) {
   return value.trim() || "Không có dữ liệu";
+}
+
+function toTaskEditDraft(task: SheetTask): TaskEditDraft {
+  return {
+    tags: task.tags,
+    system: task.system,
+    task: task.task,
+    details: task.details,
+    priority: task.priority,
+    status: task.status,
+    timeline: task.timeline,
+    dateReceived: task.startDateISO ?? "",
+    deadline: task.deadlineISO ?? "",
+    actualDate: task.actualDateISO ?? "",
+    note: task.note,
+  };
 }
 
 function formatDetailDate(raw: string, iso: string | null) {

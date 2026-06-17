@@ -303,8 +303,10 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
 
       {selectedTask ? (
         <TaskDetailDialog
+          isSaving={savingRowNumber === selectedTask.rowNumber}
           task={selectedTask}
           onClose={() => setSelectedTaskId(null)}
+          onTaskUpdate={handleTaskUpdate}
         />
       ) : null}
     </main>
@@ -354,7 +356,7 @@ function MetricGrid({
 
 function OverviewShortcuts() {
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
       <OverviewShortcutCard
         description="Xem status, priority, workload và deadline health."
         href="/charts"
@@ -374,6 +376,11 @@ function OverviewShortcuts() {
         description="Task có deadline từ thứ 2 tới chủ nhật tuần này."
         href="/week"
         label="Task tuần này"
+      />
+      <OverviewShortcutCard
+        description="Track ai tạo, update, backup và restore dữ liệu."
+        href="/history"
+        label="History"
       />
       <a
         href={SHEET_URL}

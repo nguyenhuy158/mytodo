@@ -13,8 +13,15 @@ export type TaskBackupSource = "google-sheet" | "xlsx";
 export type TaskUpdateInput = {
   rowNumber: number;
   updates: {
+    tags?: string;
+    system?: string;
+    task?: string;
+    details?: string;
     status?: TaskStatus;
     priority?: TaskPriority;
+    timeline?: string;
+    dateReceived?: string;
+    deadline?: string;
     actualDate?: string;
     note?: string;
   };
@@ -106,6 +113,57 @@ export type TaskBackupMutationPayload = TaskBackupsPayload & {
   backup: TaskBackupSummary;
   safetyBackup?: TaskBackupSummary;
   tasksPayload?: TasksPayload;
+};
+
+export type TaskHistoryAction =
+  | "task.create"
+  | "task.update"
+  | "backup.create"
+  | "backup.restore";
+
+export type TaskHistoryTargetType = "task" | "backup" | "sheet";
+
+export type TaskHistoryMetadataValue = string | number | boolean | null;
+
+export type TaskHistoryChange = {
+  field: string;
+  label: string;
+  before: string;
+  after: string;
+};
+
+export type TaskHistoryTarget = {
+  type: TaskHistoryTargetType;
+  rowNumber?: number;
+  taskId?: string;
+  taskTitle?: string;
+  backupId?: string;
+};
+
+export type TaskHistoryEntry = {
+  id: string;
+  createdAt: string;
+  actorEmail: string;
+  action: TaskHistoryAction;
+  summary: string;
+  target: TaskHistoryTarget;
+  changes: TaskHistoryChange[];
+  metadata?: Record<string, TaskHistoryMetadataValue>;
+};
+
+export type TaskHistoryCreateInput = Omit<
+  TaskHistoryEntry,
+  "id" | "createdAt"
+> & {
+  createdAt?: string;
+};
+
+export type TaskHistoryPayload = {
+  entries: TaskHistoryEntry[];
+  meta: {
+    limit: number;
+    total: number;
+  };
 };
 
 export function normalizeStatus(value: string): TaskStatus {

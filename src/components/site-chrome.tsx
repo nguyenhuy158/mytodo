@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/tasks", icon: "listTodo", label: "Task board" },
   { href: "/kanban", icon: "kanban", label: "Kanban" },
   { href: "/week", icon: "calendarDays", label: "Task tuần này" },
+  { href: "/history", icon: "clock", label: "History" },
 ];
 
 const getActiveNavHref = (pathname: string) =>
@@ -260,7 +261,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
               2026 Tasks
             </Link>
           </div>
-          <nav className="grid grid-cols-5 gap-1.5 sm:flex sm:gap-2 lg:justify-center">
+          <nav className="grid grid-cols-6 gap-1.5 sm:flex sm:gap-2 lg:justify-center">
             {NAV_ITEMS.map((item) => {
               const isActive =
                 activeNavHref === item.href;
@@ -452,6 +453,11 @@ function SettingsMenu({
                   label="Backup / Restore"
                   onClick={onBackup}
                 />
+                <SettingsMenuLink
+                  href="/history"
+                  icon="clock"
+                  label="History hoạt động"
+                />
               </div>
             </div>
           ) : null}
@@ -516,6 +522,27 @@ function SettingsMenuItem({
       />
       {label}
     </button>
+  );
+}
+
+function SettingsMenuLink({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: AppIconName;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black text-slate-700 transition hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100"
+    >
+      <AppIcon name={icon} className="size-4" />
+      {label}
+    </Link>
   );
 }
 

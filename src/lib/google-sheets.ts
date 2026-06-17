@@ -61,7 +61,18 @@ const HEADER_ALIASES: Record<HeaderKey, string[]> = {
   note: ["note", "notes"],
 };
 
-type WritableHeaderKey = "priority" | "status" | "actualDate" | "note";
+type WritableHeaderKey =
+  | "tags"
+  | "system"
+  | "task"
+  | "details"
+  | "priority"
+  | "status"
+  | "timeline"
+  | "dateReceived"
+  | "deadline"
+  | "actualDate"
+  | "note";
 type CreatableHeaderKey =
   | "tags"
   | "system"
@@ -76,15 +87,29 @@ type CreatableHeaderKey =
   | "note";
 
 const WRITABLE_UPDATE_FIELDS: WritableHeaderKey[] = [
+  "tags",
+  "system",
+  "task",
+  "details",
   "priority",
   "status",
+  "timeline",
+  "dateReceived",
+  "deadline",
   "actualDate",
   "note",
 ];
 
 const WRITABLE_HEADER_LABELS: Record<WritableHeaderKey, string> = {
+  tags: "Tags",
+  system: "System",
+  task: "TASK",
+  details: "Details",
   priority: "PRIORITY",
   status: "STATUS",
+  timeline: "Timeline",
+  dateReceived: "Date Received",
+  deadline: "Deadline",
   actualDate: "Actual Da",
   note: "Note",
 };
@@ -1041,7 +1066,10 @@ function buildTaskCreateRow(
 function formatTaskUpdateValue(key: WritableHeaderKey, value: string) {
   const normalized = value.trim();
 
-  if (key === "actualDate" && normalized) {
+  if (
+    (key === "dateReceived" || key === "deadline" || key === "actualDate") &&
+    normalized
+  ) {
     return formatISODateForDisplay(normalized);
   }
 

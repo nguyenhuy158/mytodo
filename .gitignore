@@ -24,6 +24,7 @@
 .DS_Store
 *.pem
 .task-backups/
+.task-history/
 
 # debug
 npm-debug.log*

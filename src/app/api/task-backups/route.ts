@@ -1,6 +1,9 @@
 import { auth } from "@/auth";
 import { TaskBackupValidationError } from "@/application/task-backups/task-backup-service";
-import { createTaskBackupApplicationService } from "@/infrastructure/app-services";
+import {
+  createTaskBackupApplicationService,
+  createTaskHistoryApplicationService,
+} from "@/infrastructure/app-services";
 import { isEmailAllowed } from "@/lib/auth-config";
 import { SheetConfigError } from "@/lib/google-sheets";
 import { TaskBackupStorageError } from "@/lib/task-backups";
@@ -19,10 +22,10 @@ class RequestValidationError extends Error {
 
 export async function GET() {
   try {
-    const authError = await getTaskBackupAuthErrorResponse();
+    const authResult = await getTaskBackupAuthResult();
 
-    if (authError) {
-      return authError;
+    if ("response" in authResult) {
+      return authResult.response;
     }
 
     return backupsResponse({
@@ -35,43 +38,57 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const authError = await getTaskBackupAuthErrorResponse();
+    const authResult = await getTaskBackupAuthResult();
 
-    if (authError) {
-      return authError;
+    if ("response" in authResult) {
+      return authResult.response;
     }
 
     const payload = await readJson(request);
     const action = parseAction(payload);
 
     if (action === "create") {
-      return createBackupResponse(payload);
+      return createBackupResponse(payload, authResult.email);
     }
 
-    return restoreBackupResponse(payload);
+    return restoreBackupResponse(payload, authResult.email);
   } catch (error) {
     return backupErrorResponse(error);
   }
 }
 
-async function createBackupResponse(payload: unknown) {
-  return backupMutationResponse(
-    await createTaskBackupApplicationService().createBackup(
-      getOptionalString(payload, "note"),
-    ),
+async function createBackupResponse(payload: unknown, actorEmail: string) {
+  const mutationPayload = await createTaskBackupApplicationService().createBackup(
+    getOptionalString(payload, "note"),
   );
-}
 
-async function restoreBackupResponse(payload: unknown) {
-  const backupId = getRequiredString(payload, "backupId");
-  const confirmation = getRequiredString(payload, "confirmation");
-
-  return backupMutationResponse(
-    await createTaskBackupApplicationService().restoreBackup({
-      backupId,
-      confirmation,
+  await recordBackupHistory(() =>
+    createTaskHistoryApplicationService().recordBackupCreate({
+      actorEmail,
+      backup: mutationPayload.backup,
     }),
   );
+
+  return backupMutationResponse(mutationPayload);
+}
+
+async function restoreBackupResponse(payload: unknown, actorEmail: string) {
+  const backupId = getRequiredString(payload, "backupId");
+  const confirmation = getRequiredString(payload, "confirmation");
+  const mutationPayload = await createTaskBackupApplicationService().restoreBackup({
+    backupId,
+    confirmation,
+  });
+
+  await recordBackupHistory(() =>
+    createTaskHistoryApplicationService().recordBackupRestore({
+      actorEmail,
+      backup: mutationPayload.backup,
+      safetyBackup: mutationPayload.safetyBackup,
+    }),
+  );
+
+  return backupMutationResponse(mutationPayload);
 }
 
 function backupsResponse(payload: TaskBackupsPayload) {
@@ -90,27 +107,31 @@ function backupMutationResponse(payload: TaskBackupMutationPayload) {
   });
 }
 
-async function getTaskBackupAuthErrorResponse() {
+async function getTaskBackupAuthResult() {
   const session = await auth();
   const email = session?.user?.email;
 
   if (!email) {
-    return backupAuthErrorResponse(
-      "AUTH_REQUIRED",
-      "Bạn cần đăng nhập bằng Google.",
-      401,
-    );
+    return {
+      response: backupAuthErrorResponse(
+        "AUTH_REQUIRED",
+        "Bạn cần đăng nhập bằng Google.",
+        401,
+      ),
+    };
   }
 
   if (!isEmailAllowed(email)) {
-    return backupAuthErrorResponse(
-      "AUTH_FORBIDDEN",
-      "Email này không được phép xem dữ liệu.",
-      403,
-    );
+    return {
+      response: backupAuthErrorResponse(
+        "AUTH_FORBIDDEN",
+        "Email này không được phép xem dữ liệu.",
+        403,
+      ),
+    };
   }
 
-  return null;
+  return { email };
 }
 
 function backupAuthErrorResponse(code: string, message: string, status: number) {
@@ -129,6 +150,14 @@ function backupAuthErrorResponse(code: string, message: string, status: number) 
       },
     },
   );
+}
+
+async function recordBackupHistory(operation: () => Promise<unknown>) {
+  try {
+    await operation();
+  } catch (error) {
+    console.error("Task backup history write failed", error);
+  }
 }
 
 function backupErrorResponse(error: unknown) {
