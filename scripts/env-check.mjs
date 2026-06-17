@@ -146,11 +146,23 @@ if (
   fail("MAGIC_LINK_TTL_MINUTES must be a positive number.");
 }
 
-if (env.APP_BASE_URL) {
+for (const publicUrlKey of ["AUTH_URL", "NEXTAUTH_URL", "APP_BASE_URL"]) {
+  const publicUrlValue = env[publicUrlKey];
+
+  if (!publicUrlValue) {
+    continue;
+  }
+
+  let publicUrl;
+
   try {
-    new URL(env.APP_BASE_URL);
+    publicUrl = new URL(publicUrlValue);
   } catch {
-    fail("APP_BASE_URL must be a valid URL.");
+    fail(`${publicUrlKey} must be a valid URL.`);
+  }
+
+  if (publicUrl.hostname === "0.0.0.0") {
+    fail(`${publicUrlKey} must be a browser-accessible origin, not 0.0.0.0.`);
   }
 }
 

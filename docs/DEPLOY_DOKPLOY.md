@@ -31,7 +31,9 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
-APP_BASE_URL=https://your-domain.com
+AUTH_URL=https://task.huycode.click
+NEXTAUTH_URL=https://task.huycode.click
+APP_BASE_URL=https://task.huycode.click
 # RESEND_API_KEY=re_xxxxxxxxx
 # MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
 RESEND_API_KEY=
@@ -51,15 +53,16 @@ GOOGLE_XLSX_SHEET_NAME=To-Do List
 7. In Google Cloud OAuth, add this callback URL:
 
 ```text
-https://your-domain.com/api/auth/callback/google
+https://task.huycode.click/api/auth/callback/google
 ```
 
 8. Deploy.
 
-Magic-link login does not need a Google OAuth callback, but it only appears when
-`RESEND_API_KEY` and `MAGIC_LINK_FROM` are both configured. `APP_BASE_URL` must
-match the public Dokploy domain so the email link points back to the deployed
-site.
+`AUTH_URL`, `NEXTAUTH_URL`, and `APP_BASE_URL` must match the public Dokploy
+domain. Do not set them to `0.0.0.0` or the internal container port; Auth.js will
+use these values for OAuth redirects. Magic-link login does not need a Google
+OAuth callback, but it only appears when `RESEND_API_KEY` and `MAGIC_LINK_FROM`
+are both configured.
 
 ## Credential Notes
 
@@ -128,6 +131,7 @@ The Dockerfile is optimized for repeat deploys:
 
 - pnpm dependencies use a BuildKit cache mount.
 - Next.js build cache is persisted at `/app/.next/cache` through a BuildKit cache mount.
+- Docker builds use `corepack pnpm run build:docker`, which runs `next build --webpack` for more predictable compile time on small Dokploy servers.
 - The builder stage copies only app build inputs (`src`, `public`, and config files), so docs-only changes do not invalidate the Next.js build layer.
 
 If deploys are still too slow, the next step is building the Docker image in GitHub Actions and configuring Dokploy to pull the prebuilt image from GHCR instead of building on the server.

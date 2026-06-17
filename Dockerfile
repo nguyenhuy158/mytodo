@@ -20,7 +20,7 @@ COPY --link package.json pnpm-lock.yaml next.config.ts postcss.config.mjs tsconf
 COPY --link public ./public
 COPY --link src ./src
 RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
-  corepack pnpm run build
+  corepack pnpm run build:docker
 
 FROM node:22-alpine AS runner
 ENV HOSTNAME=0.0.0.0

@@ -9,7 +9,10 @@ services:
     env_file:
       - .env
     environment:
+      APP_BASE_URL: ${APP_BASE_URL:-https://task.huycode.click}
+      AUTH_URL: ${AUTH_URL:-https://task.huycode.click}
       HOSTNAME: 0.0.0.0
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://task.huycode.click}
       NODE_ENV: production
       PORT: 3000
     expose:

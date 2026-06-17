@@ -30,6 +30,8 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
+AUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3000
 APP_BASE_URL=http://localhost:3000
 # RESEND_API_KEY=re_xxxxxxxxx
 # MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
@@ -54,7 +56,9 @@ App vẫn hỗ trợ `GOOGLE_SERVICE_ACCOUNT_EMAIL` và
 base64 JSON để tránh lỗi xuống dòng private key trong `.env`.
 
 Google login dùng Auth.js. Chỉ email trong `AUTH_ALLOWED_EMAILS` mới xem được
-website và gọi `/api/tasks`. Google OAuth callback URL:
+website và gọi `/api/tasks`. `AUTH_URL`, `NEXTAUTH_URL`, và `APP_BASE_URL` phải
+là origin public mà browser đang mở; không dùng `0.0.0.0`. Google OAuth callback
+URL:
 
 Set `AUTH_DEBUG=true` temporarily when debugging OAuth callback issues.
 

@@ -36,6 +36,8 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
+AUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3000
 APP_BASE_URL=http://localhost:3000
 ```
 
@@ -98,6 +100,11 @@ If `AUTH_ALLOWED_EMAILS` is empty, the app denies all users.
 
 Set `AUTH_DEBUG=true` temporarily when debugging OAuth callback issues. Keep it
 `false` in normal production runs.
+
+`AUTH_URL`, `NEXTAUTH_URL`, and `APP_BASE_URL` must be the public origin users
+open in the browser. Use `http://localhost:3000` locally and the HTTPS domain in
+production. Do not use `0.0.0.0`; that is only a bind address inside the
+container.
 
 ## Magic Link Login Setup
 

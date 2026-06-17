@@ -114,11 +114,26 @@ make env-check
 
 Likely causes:
 
+- `AUTH_URL`, `NEXTAUTH_URL`, or `APP_BASE_URL` points to `0.0.0.0` or an internal container URL instead of the public domain
 - `AUTH_GOOGLE_ID` missing or wrong
 - `AUTH_GOOGLE_SECRET` missing or wrong
 - `AUTH_SECRET` missing
 - Google OAuth callback URL not configured
 - signed-in email is not listed in `AUTH_ALLOWED_EMAILS`
+
+For production on Dokploy, these values must match the public site:
+
+```env
+AUTH_URL=https://task.huycode.click
+NEXTAUTH_URL=https://task.huycode.click
+APP_BASE_URL=https://task.huycode.click
+```
+
+The Google OAuth authorized redirect URI must include:
+
+```text
+https://task.huycode.click/api/auth/callback/google
+```
 
 For short-lived debugging, set `AUTH_DEBUG=true` and inspect server logs. Turn it
 back to `false` after the issue is fixed.
