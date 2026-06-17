@@ -1,25 +1,14 @@
-import {
-  createSheetBackupSnapshot,
-  getSheetTasks,
-  restoreSheetBackupSnapshot,
-  SheetConfigError,
-} from "@/lib/google-sheets";
-import {
-  listTaskBackups,
-  readTaskBackup,
-  saveTaskBackup,
-  TaskBackupStorageError,
-  toTaskBackupSummary,
-} from "@/lib/task-backups";
 import { auth } from "@/auth";
+import { TaskBackupValidationError } from "@/application/task-backups/task-backup-service";
+import { createTaskBackupApplicationService } from "@/infrastructure/app-services";
 import { isEmailAllowed } from "@/lib/auth-config";
+import { SheetConfigError } from "@/lib/google-sheets";
+import { TaskBackupStorageError } from "@/lib/task-backups";
 import type { TaskBackupMutationPayload, TaskBackupsPayload } from "@/lib/tasks";
 import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const RESTORE_CONFIRMATION = "RESTORE";
 
 class RequestValidationError extends Error {
   constructor(message: string) {
@@ -37,7 +26,7 @@ export async function GET() {
     }
 
     return backupsResponse({
-      backups: await listTaskBackups(),
+      backups: await createTaskBackupApplicationService().listBackups(),
     });
   } catch (error) {
     return backupErrorResponse(error);
@@ -66,38 +55,23 @@ export async function POST(request: NextRequest) {
 }
 
 async function createBackupResponse(payload: unknown) {
-  const snapshot = await createSheetBackupSnapshot();
-  const backup = await saveTaskBackup(snapshot, getOptionalString(payload, "note"));
-
-  return backupMutationResponse({
-    backup,
-    backups: await listTaskBackups(),
-  });
+  return backupMutationResponse(
+    await createTaskBackupApplicationService().createBackup(
+      getOptionalString(payload, "note"),
+    ),
+  );
 }
 
 async function restoreBackupResponse(payload: unknown) {
   const backupId = getRequiredString(payload, "backupId");
   const confirmation = getRequiredString(payload, "confirmation");
 
-  if (confirmation !== RESTORE_CONFIRMATION) {
-    throw new RequestValidationError("Nhập RESTORE để xác nhận restore.");
-  }
-
-  const backup = await readTaskBackup(backupId);
-  const safetySnapshot = await createSheetBackupSnapshot();
-  const safetyBackup = await saveTaskBackup(
-    safetySnapshot,
-    `Auto backup before restoring ${backup.id}`,
+  return backupMutationResponse(
+    await createTaskBackupApplicationService().restoreBackup({
+      backupId,
+      confirmation,
+    }),
   );
-
-  await restoreSheetBackupSnapshot(backup);
-
-  return backupMutationResponse({
-    backup: toTaskBackupSummary(backup),
-    safetyBackup,
-    backups: await listTaskBackups(),
-    tasksPayload: await getSheetTasks({ forceRefresh: true }),
-  });
 }
 
 function backupsResponse(payload: TaskBackupsPayload) {
@@ -158,7 +132,9 @@ function backupAuthErrorResponse(code: string, message: string, status: number) 
 }
 
 function backupErrorResponse(error: unknown) {
-  const isValidationError = error instanceof RequestValidationError;
+  const isValidationError =
+    error instanceof RequestValidationError ||
+    error instanceof TaskBackupValidationError;
   const isConfigError = error instanceof SheetConfigError;
   const isStorageError = error instanceof TaskBackupStorageError;
   const message =

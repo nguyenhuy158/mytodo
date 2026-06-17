@@ -8,6 +8,7 @@
 - Tailwind CSS v4
 - SWR for polling
 - Google APIs for Sheets/Drive access
+- Gemini API for server-side AI summaries
 - Auth.js / NextAuth for Google login and optional Resend magic-link sessions
 - ExcelJS for Office `.xlsx` parsing
 - Recharts for charts
@@ -26,6 +27,7 @@
 | `/login` | Google login, optional magic-link login, and access-denied state | `src/app/login/page.tsx` |
 | `/api/tasks` | Server API for tasks | `src/app/api/tasks/route.ts` |
 | `/api/task-backups` | Server API for backup and restore | `src/app/api/task-backups/route.ts` |
+| `/api/ai/week-summary` | Server API for Gemini weekly summary | `src/app/api/ai/week-summary/route.ts` |
 | `/api/auth/[...nextauth]` | Auth.js Google OAuth handlers | `src/app/api/auth/[...nextauth]/route.ts` |
 | `/api/auth/magic/request` | Send a whitelisted magic login link by email | `src/app/api/auth/magic/request/route.ts` |
 | `/api/auth/magic/callback` | Verify magic token and create Auth.js session | `src/app/api/auth/magic/callback/route.ts` |
@@ -41,9 +43,37 @@
 | `src/components/app-icon.tsx` | Central Lucide icon registry |
 | `src/components/app-toaster.tsx` | Sonner toaster mount |
 | `src/components/magic-link-form.tsx` | Client form for requesting email login links |
+| `src/lib/gemini.ts` | Server-only Gemini JSON helper used by AI features |
 
 Route entry files stay small and delegate UI to components.
 Global header/footer live in `src/app/layout.tsx` through `SiteHeader` and `SiteFooter`.
+
+## Hexagonal Architecture
+
+Server behavior follows a lightweight hexagonal split:
+
+| Layer | Folder | Responsibility |
+| --- | --- | --- |
+| Domain ports | `src/domain` | Stable interfaces for core use cases, independent from Google, Gemini, or local files |
+| Application services | `src/application` | Task, backup, and AI summary use-case orchestration |
+| Infrastructure adapters | `src/infrastructure` | Google Sheets, file backups, Gemini, and service composition |
+| Driving adapters | `src/app/api` | HTTP/auth/request parsing and response mapping |
+| UI | `src/components` | Client interaction and rendering |
+
+Dependency direction:
+
+```txt
+src/app/api
+  -> src/infrastructure/app-services
+  -> src/application
+  -> src/domain ports
+  -> src/infrastructure adapters
+  -> src/lib legacy implementations / third-party SDKs
+```
+
+Route handlers should not call Google Sheets, backup storage, or Gemini modules
+directly. Add a port under `src/domain` and an adapter under `src/infrastructure`
+when introducing another external system.
 
 ## Data Flow
 
@@ -51,7 +81,9 @@ Global header/footer live in `src/app/layout.tsx` through `SiteHeader` and `Site
 Browser route
   -> SWR fetch('/api/tasks')
   -> src/app/api/tasks/route.ts
-  -> getSheetTasks()
+  -> task application service
+  -> TaskRepository port
+  -> Google Sheet adapter
   -> src/lib/google-sheets.ts
   -> Google Sheets API or Drive API
   -> parse rows into SheetTask[]
@@ -73,6 +105,9 @@ Write-back flow:
 ```txt
 /tasks row editor
   -> PATCH /api/tasks
+  -> task application service
+  -> TaskRepository port
+  -> Google Sheet adapter
   -> updateSheetTask()
   -> Sheets API values.batchUpdate for native Google Sheets
   -> or Drive download + ExcelJS edit + Drive upload for XLSX
@@ -86,11 +121,26 @@ Backup/restore flow:
 Shared header Backup button
   -> GET /api/task-backups for backup metadata
   -> POST /api/task-backups action=create
+  -> backup application service
+  -> TaskRepository + TaskBackupRepository ports
   -> save row snapshot under .task-backups
   -> POST /api/task-backups action=restore with RESTORE confirmation
   -> create safety backup of current data
   -> restore selected snapshot to Google Sheet or XLSX
   -> clear server cache and force refresh tasks
+```
+
+Weekly AI summary flow:
+
+```txt
+/week Tóm tắt hôm nay button
+  -> POST /api/ai/week-summary
+  -> weekly summary application service
+  -> TaskRepository + WeeklyTaskSummarizer ports
+  -> Gemini weekly summarizer adapter
+  -> src/lib/gemini.ts
+  -> Gemini generateContent with structured JSON output
+  -> return today, overdue, risks, and priority order
 ```
 
 ## Google Sheet Reader

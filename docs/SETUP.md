@@ -51,6 +51,8 @@ GOOGLE_SHEET_RANGE="'To-Do List'!A1:O"
 RESEND_API_KEY=
 MAGIC_LINK_FROM=
 MAGIC_LINK_TTL_MINUTES=15
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash
 ```
 
 For deployment providers that cannot read a local JSON file, use:
@@ -129,6 +131,19 @@ MAGIC_LINK_TTL_MINUTES=15
 Only emails in `AUTH_ALLOWED_EMAILS` can use a magic link. The request endpoint
 returns a generic success message so the UI does not reveal which emails are
 allowed.
+
+## Gemini AI Setup
+
+The `/week` page can call Gemini through the internal `/api/ai/week-summary`
+route. The browser never receives the Gemini key.
+
+```txt
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.5-flash
+```
+
+If `GEMINI_API_KEY` is empty, normal task views still work, but AI summary
+actions return a config message instead of calling Gemini.
 
 ## Google Cloud Setup
 

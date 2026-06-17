@@ -1,16 +1,13 @@
-import {
-  createSheetTask,
-  getSheetTasks,
-  SheetConfigError,
-  updateSheetTask,
-} from "@/lib/google-sheets";
 import { auth } from "@/auth";
+import { createTaskApplicationService } from "@/infrastructure/app-services";
 import { isEmailAllowed } from "@/lib/auth-config";
+import { SheetConfigError } from "@/lib/google-sheets";
 import type {
   TaskCreateInput,
   TaskPriority,
   TaskStatus,
   TaskUpdateInput,
+  TasksPayload,
 } from "@/lib/tasks";
 import type { NextRequest } from "next/server";
 
@@ -49,7 +46,8 @@ export async function GET(request: NextRequest) {
     }
 
     const forceRefresh = request.nextUrl.searchParams.get("force") === "1";
-    const payload = await getSheetTasks({ forceRefresh });
+    const taskService = createTaskApplicationService();
+    const payload = await taskService.listTasks({ forceRefresh });
 
     return taskResponse(payload);
   } catch (error) {
@@ -66,10 +64,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const input = parseTaskUpdateInput(await readJson(request));
-
-    await updateSheetTask(input);
-
-    const payload = await getSheetTasks({ forceRefresh: true });
+    const taskService = createTaskApplicationService();
+    const payload = await taskService.updateTask(input);
 
     return taskResponse(payload);
   } catch (error) {
@@ -86,10 +82,8 @@ export async function POST(request: NextRequest) {
     }
 
     const input = parseTaskCreateInput(await readJson(request));
-
-    await createSheetTask(input);
-
-    const payload = await getSheetTasks({ forceRefresh: true });
+    const taskService = createTaskApplicationService();
+    const payload = await taskService.createTask(input);
 
     return taskResponse(payload);
   } catch (error) {
@@ -97,7 +91,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function taskResponse(payload: Awaited<ReturnType<typeof getSheetTasks>>) {
+function taskResponse(payload: TasksPayload) {
   return Response.json(payload, {
     headers: {
       "Cache-Control": "private, no-store",

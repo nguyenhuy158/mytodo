@@ -13,6 +13,10 @@ import type {
   TaskStatus,
   TasksPayload,
 } from "@/lib/tasks";
+import type {
+  WeeklyAiSummaryItem,
+  WeeklyAiSummaryPayload,
+} from "@/lib/task-ai-types";
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
 import { TaskTimelinePill } from "@/components/task-timeline";
@@ -20,6 +24,7 @@ import { usePersistedTaskSelection } from "@/components/use-persisted-task-selec
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
+const WEEK_SUMMARY_API_URL = "/api/ai/week-summary";
 const WEEK_SELECTION_STORAGE_KEY = "mytodo:selected-task:/week";
 
 const PRIORITY_ORDER: Record<TaskPriority, number> = {
@@ -52,6 +57,15 @@ type TaskFetchError = Error & {
   };
 };
 
+type WeekSummaryFetchError = Error & {
+  payload?: {
+    error?: {
+      code?: string;
+      message?: string;
+    };
+  };
+};
+
 type WeekDay = {
   iso: string;
   label: string;
@@ -71,8 +85,29 @@ const fetcher = async (url: string): Promise<TasksPayload> => {
   return payload;
 };
 
+const requestWeekSummary = async (): Promise<WeeklyAiSummaryPayload> => {
+  const response = await fetch(WEEK_SUMMARY_API_URL, {
+    cache: "no-store",
+    method: "POST",
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    const message =
+      payload.error?.message ?? "Không tạo được tóm tắt AI hôm nay.";
+
+    throw Object.assign(new Error(message), { payload });
+  }
+
+  return payload;
+};
+
 export function WeeklyTasksPage() {
   const [query, setQuery] = useState("");
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryPayload, setSummaryPayload] =
+    useState<WeeklyAiSummaryPayload | null>(null);
   const deferredQuery = useDeferredValue(query);
   const { data, error, isLoading } = useSWR<TasksPayload>(
     TASKS_API_URL,
@@ -121,6 +156,26 @@ export function WeeklyTasksPage() {
     startTransition(() => {
       setQuery(nextQuery);
     });
+  };
+
+  const handleWeekSummaryClick = async () => {
+    setIsSummaryLoading(true);
+    setSummaryError(null);
+    setSummaryPayload(null);
+
+    try {
+      setSummaryPayload(await requestWeekSummary());
+    } catch (summaryFetchError) {
+      const typedError = summaryFetchError as WeekSummaryFetchError;
+
+      setSummaryError(
+        typedError.payload?.error?.message ||
+          typedError.message ||
+          "Không tạo được tóm tắt AI hôm nay.",
+      );
+    } finally {
+      setIsSummaryLoading(false);
+    }
   };
 
   return (
@@ -172,19 +227,44 @@ export function WeeklyTasksPage() {
                 Deadline từ thứ 2 tới chủ nhật
               </h2>
             </div>
-            <label className="relative">
-              <AppIcon
-                name="search"
-                className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                value={query}
-                onChange={(event) => handleSearchChange(event.target.value)}
-                placeholder="Tìm task trong tuần..."
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white/85 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 sm:w-80"
-              />
-            </label>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={handleWeekSummaryClick}
+                disabled={isSummaryLoading}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 sm:min-w-44"
+              >
+                <AppIcon
+                  name={isSummaryLoading ? "loader" : "sparkles"}
+                  className={cn("size-4", isSummaryLoading ? "animate-spin" : "")}
+                />
+                Tóm tắt hôm nay
+              </button>
+              <label className="relative">
+                <AppIcon
+                  name="search"
+                  className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  value={query}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  placeholder="Tìm task trong tuần..."
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white/85 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 sm:w-80"
+                />
+              </label>
+            </div>
           </div>
+
+          {summaryError ? (
+            <AiSummaryErrorNotice message={summaryError} />
+          ) : null}
+
+          {summaryPayload ? (
+            <WeeklyAiSummaryPanel
+              payload={summaryPayload}
+              onTaskSelect={setSelectedTaskId}
+            />
+          ) : null}
 
           {isLoading && !data ? (
             <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/60 p-8 text-center">
@@ -245,6 +325,188 @@ function WeeklyMetricCard({
       </p>
       <p className="mt-2 text-sm font-semibold text-slate-500">{detail}</p>
     </article>
+  );
+}
+
+function WeeklyAiSummaryPanel({
+  onTaskSelect,
+  payload,
+}: {
+  onTaskSelect: (taskId: string) => void;
+  payload: WeeklyAiSummaryPayload;
+}) {
+  const sections = [
+    {
+      items: payload.summary.today,
+      label: "Việc cần làm hôm nay",
+      tone: "teal",
+    },
+    {
+      items: payload.summary.overdue,
+      label: "Việc trễ hạn",
+      tone: "rose",
+    },
+    {
+      items: payload.summary.risks,
+      label: "Rủi ro",
+      tone: "amber",
+    },
+    {
+      items: payload.summary.priorityOrder,
+      label: "Thứ tự ưu tiên",
+      tone: "slate",
+    },
+  ] satisfies Array<{
+    items: WeeklyAiSummaryItem[];
+    label: string;
+    tone: SummarySectionTone;
+  }>;
+
+  return (
+    <section className="mt-5 rounded-[1.5rem] border border-teal-100 bg-teal-50/70 p-4 shadow-inner shadow-white/80">
+      <div className="flex flex-col gap-3 border-b border-teal-100 pb-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-teal-800">
+            <AppIcon name="sparkles" className="size-3.5" />
+            Gemini
+          </div>
+          <h3 className="mt-3 text-xl font-black text-slate-950">
+            Tóm tắt hôm nay
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+            {payload.summary.overview}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white/80 px-3 py-2 text-xs font-bold text-slate-500">
+          {formatGeneratedAt(payload.meta.generatedAt)} ·{" "}
+          {payload.meta.includedTaskCount} task · {payload.meta.model}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-4">
+        {sections.map((section) => (
+          <AiSummarySection
+            key={section.label}
+            items={section.items}
+            label={section.label}
+            onTaskSelect={onTaskSelect}
+            tone={section.tone}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+type SummarySectionTone = "amber" | "rose" | "slate" | "teal";
+
+function AiSummarySection({
+  items,
+  label,
+  onTaskSelect,
+  tone,
+}: {
+  items: WeeklyAiSummaryItem[];
+  label: string;
+  onTaskSelect: (taskId: string) => void;
+  tone: SummarySectionTone;
+}) {
+  const toneClasses = {
+    amber: "bg-amber-100 text-amber-800",
+    rose: "bg-rose-100 text-rose-800",
+    slate: "bg-slate-200 text-slate-800",
+    teal: "bg-teal-100 text-teal-800",
+  } satisfies Record<SummarySectionTone, string>;
+
+  return (
+    <article className="rounded-[1.25rem] border border-white/80 bg-white/80 p-3">
+      <h4
+        className={cn(
+          "inline-flex rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em]",
+          toneClasses[tone],
+        )}
+      >
+        {label}
+      </h4>
+
+      {items.length ? (
+        <div className="mt-3 grid gap-2">
+          {items.map((item, index) => (
+            <AiSummaryItemCard
+              key={`${label}-${item.taskId ?? "item"}-${index}`}
+              item={item}
+              onTaskSelect={onTaskSelect}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-400">
+          Không có task phù hợp.
+        </p>
+      )}
+    </article>
+  );
+}
+
+function AiSummaryItemCard({
+  item,
+  onTaskSelect,
+}: {
+  item: WeeklyAiSummaryItem;
+  onTaskSelect: (taskId: string) => void;
+}) {
+  const canOpenTask = Boolean(item.taskId);
+
+  return (
+    <button
+      type="button"
+      disabled={!canOpenTask}
+      onClick={() => {
+        if (item.taskId) {
+          onTaskSelect(item.taskId);
+        }
+      }}
+      className={cn(
+        "w-full rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm shadow-slate-900/5 transition",
+        canOpenTask
+          ? "hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+          : "cursor-default",
+      )}
+    >
+      <p className="text-sm font-black leading-snug text-slate-950">
+        {item.title}
+      </p>
+      <p className="mt-2 text-xs font-bold leading-5 text-teal-700">
+        {item.action}
+      </p>
+      {item.reason ? (
+        <p className="mt-2 text-xs leading-5 text-slate-500">{item.reason}</p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {item.priority ? <SummaryTag value={item.priority} /> : null}
+        {item.status ? <SummaryTag value={item.status} /> : null}
+        {item.deadline ? <SummaryTag value={item.deadline} /> : null}
+      </div>
+    </button>
+  );
+}
+
+function SummaryTag({ value }: { value: string }) {
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600">
+      {value}
+    </span>
+  );
+}
+
+function AiSummaryErrorNotice({ message }: { message: string }) {
+  return (
+    <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50/80 p-4 text-amber-950">
+      <div className="flex gap-3">
+        <AppIcon name="alertCircle" className="mt-0.5 size-4" />
+        <p className="text-sm font-bold leading-6">{message}</p>
+      </div>
+    </div>
   );
 }
 
@@ -540,4 +802,13 @@ function formatLongDate(value: string) {
     day: "2-digit",
     month: "2-digit",
   }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function formatGeneratedAt(value: string) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  }).format(new Date(value));
 }

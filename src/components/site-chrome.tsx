@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import { mutate } from "swr";
 import type { TaskCreateInput, TasksPayload } from "@/lib/tasks";
@@ -78,10 +78,13 @@ const fetchTasks = async (url: string): Promise<TasksPayload> => {
 export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const pathname = usePathname();
   const navLinkRefs = useRef(new Map<string, HTMLAnchorElement>());
+  const desktopSettingsMenuRef = useRef<HTMLDivElement>(null);
+  const mobileSettingsMenuRef = useRef<HTMLDivElement>(null);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const activeNavHref = getActiveNavHref(pathname);
   const isAuthPage = pathname === "/login";
@@ -96,6 +99,44 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
     saveLastNavHref(currentNavHref);
     navLinkRefs.current.get(currentNavHref)?.focus({ preventScroll: true });
   }, [activeNavHref]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        desktopSettingsMenuRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      if (
+        event.target instanceof Node &&
+        mobileSettingsMenuRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      setIsSettingsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSettingsOpen]);
 
   const handleRefresh = () => {
     const refreshTasks = async () => {
@@ -253,25 +294,24 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
           </nav>
           <div className="hidden items-center gap-2 lg:flex">
             {userEmail ? (
-              <div className="flex items-center gap-2">
-                <div className="rounded-full border border-white bg-white/70 px-3 py-2 text-xs font-black text-slate-600">
-                  <span className="block max-w-44 truncate">{userEmail}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  disabled={isSigningOut}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/70 px-4 text-sm font-black text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100 disabled:cursor-wait disabled:opacity-70"
-                  aria-label="Đăng xuất"
-                >
-                  {isSigningOut ? (
-                    <AppIcon name="loader" className="size-4 animate-spin" />
-                  ) : (
-                    <AppIcon name="logOut" className="size-4" />
-                  )}
-                  {isSigningOut ? "Đang thoát..." : "Đăng xuất"}
-                </button>
-              </div>
+              <SettingsMenu
+                userEmail={userEmail}
+                isOpen={isSettingsOpen}
+                isRefreshing={isRefreshing}
+                isSigningOut={isSigningOut}
+                menuRef={desktopSettingsMenuRef}
+                placement="desktop"
+                onBackup={() => {
+                  setIsSettingsOpen(false);
+                  setIsBackupOpen(true);
+                }}
+                onRefresh={() => {
+                  setIsSettingsOpen(false);
+                  handleRefresh();
+                }}
+                onSignOut={handleSignOut}
+                onToggle={() => setIsSettingsOpen((current) => !current)}
+              />
             ) : null}
             <button
               type="button"
@@ -280,27 +320,6 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             >
               <AppIcon name="plus" className="size-4" />
               Tạo task
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsBackupOpen(true)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/70 px-4 text-sm font-black text-slate-700 shadow-lg shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
-            >
-              <AppIcon name="databaseBackup" className="size-4" />
-              Backup
-            </button>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-teal-900 disabled:cursor-wait disabled:opacity-70"
-            >
-              {isRefreshing ? (
-                <AppIcon name="loader" className="size-4 animate-spin" />
-              ) : (
-                <AppIcon name="refresh" className="size-4" />
-              )}
-              Reload
             </button>
           </div>
         </div>
@@ -317,41 +336,25 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
       ) : null}
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex items-end gap-2 lg:hidden">
         {userEmail ? (
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={isSigningOut}
-            className="inline-flex size-12 items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-950 shadow-xl shadow-slate-900/15 backdrop-blur-xl transition hover:-translate-y-0.5 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-100 disabled:cursor-wait disabled:opacity-70"
-            aria-label="Đăng xuất"
-          >
-            {isSigningOut ? (
-              <AppIcon name="loader" className="size-5 animate-spin" />
-            ) : (
-              <AppIcon name="logOut" className="size-5" />
-            )}
-          </button>
+          <SettingsMenu
+            userEmail={userEmail}
+            isOpen={isSettingsOpen}
+            isRefreshing={isRefreshing}
+            isSigningOut={isSigningOut}
+            menuRef={mobileSettingsMenuRef}
+            placement="mobile"
+            onBackup={() => {
+              setIsSettingsOpen(false);
+              setIsBackupOpen(true);
+            }}
+            onRefresh={() => {
+              setIsSettingsOpen(false);
+              handleRefresh();
+            }}
+            onSignOut={handleSignOut}
+            onToggle={() => setIsSettingsOpen((current) => !current)}
+          />
         ) : null}
-        <button
-          type="button"
-          onClick={() => setIsBackupOpen(true)}
-          className="inline-flex size-12 items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-950 shadow-xl shadow-slate-900/15 backdrop-blur-xl transition hover:-translate-y-0.5 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
-          aria-label="Backup / Restore dữ liệu"
-        >
-          <AppIcon name="databaseBackup" className="size-5" />
-        </button>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="inline-flex size-12 items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-950 shadow-xl shadow-slate-900/15 backdrop-blur-xl transition hover:-translate-y-0.5 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 disabled:cursor-wait disabled:opacity-70"
-          aria-label="Reload Google Sheet"
-        >
-          {isRefreshing ? (
-            <AppIcon name="loader" className="size-5 animate-spin" />
-          ) : (
-            <AppIcon name="refresh" className="size-5" />
-          )}
-        </button>
         <button
           type="button"
           onClick={() => setIsCreateOpen(true)}
@@ -363,6 +366,147 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
         </button>
       </div>
     </>
+  );
+}
+
+function SettingsMenu({
+  isOpen,
+  isRefreshing,
+  isSigningOut,
+  menuRef,
+  onBackup,
+  onRefresh,
+  onSignOut,
+  onToggle,
+  placement,
+  userEmail,
+}: {
+  isOpen: boolean;
+  isRefreshing: boolean;
+  isSigningOut: boolean;
+  menuRef: RefObject<HTMLDivElement | null>;
+  onBackup: () => void;
+  onRefresh: () => void;
+  onSignOut: () => void;
+  onToggle: () => void;
+  placement: "desktop" | "mobile";
+  userEmail: string;
+}) {
+  const isMobile = placement === "mobile";
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        className={cn(
+          "inline-flex items-center justify-center border border-white bg-white/80 text-slate-700 shadow-lg shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
+          isMobile
+            ? "size-12 rounded-full backdrop-blur-xl"
+            : "h-10 max-w-72 gap-2 rounded-full px-3 text-sm font-black",
+        )}
+        aria-label="Mở settings"
+      >
+        <AppIcon name="settings" className={isMobile ? "size-5" : "size-4"} />
+        {isMobile ? null : (
+          <span className="block max-w-44 truncate">{userEmail}</span>
+        )}
+      </button>
+
+      {isOpen ? (
+        <div
+          role="menu"
+          className={cn(
+            "absolute z-[60] w-[min(calc(100vw-2rem),22rem)] rounded-[1.25rem] border border-white/80 bg-white/95 p-3 text-left shadow-2xl shadow-slate-900/20 backdrop-blur-xl",
+            isMobile ? "right-0 bottom-14" : "right-0 top-12",
+          )}
+        >
+          <div className="border-b border-slate-100 px-2 pb-3">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              Settings
+            </p>
+            <p className="mt-1 truncate text-sm font-black text-slate-900">
+              {userEmail}
+            </p>
+          </div>
+
+          <div className="py-3">
+            <p className="px-2 text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+              Dữ liệu
+            </p>
+            <div className="mt-2 grid gap-1">
+              <SettingsMenuItem
+                icon={isRefreshing ? "loader" : "refresh"}
+                isLoading={isRefreshing}
+                label={isRefreshing ? "Đang reload..." : "Reload dữ liệu"}
+                onClick={onRefresh}
+                disabled={isRefreshing}
+              />
+              <SettingsMenuItem
+                icon="databaseBackup"
+                label="Backup / Restore"
+                onClick={onBackup}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-3">
+            <p className="px-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+              Tài khoản
+            </p>
+            <div className="mt-2">
+              <SettingsMenuItem
+                icon={isSigningOut ? "loader" : "logOut"}
+                isDanger
+                isLoading={isSigningOut}
+                label={isSigningOut ? "Đang đăng xuất..." : "Đăng xuất"}
+                onClick={onSignOut}
+                disabled={isSigningOut}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsMenuItem({
+  disabled = false,
+  icon,
+  isDanger = false,
+  isLoading = false,
+  label,
+  onClick,
+}: {
+  disabled?: boolean;
+  icon: AppIconName;
+  isDanger?: boolean;
+  isLoading?: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition focus-visible:outline-none focus-visible:ring-4 disabled:cursor-wait disabled:opacity-70",
+        isDanger
+          ? "text-rose-700 hover:bg-rose-50 focus-visible:ring-rose-100"
+          : "text-slate-700 hover:bg-teal-50 hover:text-teal-800 focus-visible:ring-teal-100",
+      )}
+    >
+      <AppIcon
+        name={icon}
+        className={cn("size-4", isLoading ? "animate-spin" : "")}
+      />
+      {label}
+    </button>
   );
 }
 
