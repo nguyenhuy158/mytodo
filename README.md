@@ -1,6 +1,6 @@
 # 2026 To-do Cockpit
 
-Next.js dashboard đọc task từ Google Sheet private bằng Google Sheets API, cho phép cập nhật lại một số field vận hành về Sheet, sau đó client polling `/api/tasks` để cập nhật timeline trên website.
+Next.js dashboard đọc task từ Google Sheet private bằng Google Sheets API, cho phép cập nhật field vận hành, backup/restore dữ liệu Sheet, sau đó client polling `/api/tasks` để cập nhật timeline trên website.
 
 ## Tài liệu dự án
 
@@ -31,11 +31,10 @@ AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
 APP_BASE_URL=http://localhost:3000
-MAGIC_LINK_SMTP_HOST=smtp.gmail.com
-MAGIC_LINK_SMTP_PORT=465
-MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
-MAGIC_LINK_SMTP_PASS=your-gmail-app-password
-MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+# RESEND_API_KEY=re_xxxxxxxxx
+# MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
+RESEND_API_KEY=
+MAGIC_LINK_FROM=
 MAGIC_LINK_TTL_MINUTES=15
 ```
 
@@ -65,10 +64,10 @@ http://localhost:3000/api/auth/callback/google
 
 Nếu dev server chạy port khác như `3001`, đổi callback URL theo đúng port đó.
 
-Magic-link login cho phép nhập Gmail trên `/login`, app gửi link đăng nhập về
-email đó. Chỉ email trong `AUTH_ALLOWED_EMAILS` mới dùng được link. Với Gmail,
-dùng App Password cho `MAGIC_LINK_SMTP_PASS`, không dùng mật khẩu Gmail chính.
-`APP_BASE_URL` phải trùng domain public để link trong email mở đúng website.
+Magic-link login chỉ bật khi có đủ `RESEND_API_KEY` và `MAGIC_LINK_FROM`.
+Nếu thiếu một trong hai env này, `/login` chỉ hiển thị Google login. Chỉ email
+trong `AUTH_ALLOWED_EMAILS` mới dùng được link. `APP_BASE_URL` phải trùng domain
+public để link trong email mở đúng website.
 
 Nếu file trên Drive vẫn là Office `.xlsx`, app sẽ tải workbook qua Drive API và
 parse sheet đầu tiên. Có thể set `GOOGLE_XLSX_SHEET_NAME=To-Do List` nếu muốn

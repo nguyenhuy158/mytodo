@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth, signIn } from "@/auth";
 import { MagicLinkForm } from "@/components/magic-link-form";
 import { isEmailAllowed } from "@/lib/auth-config";
+import { isMagicLinkEnabled } from "@/lib/magic-link";
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -23,6 +24,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const email = session?.user?.email ?? null;
   const isAllowed = isEmailAllowed(email);
   const errorMessage = getErrorMessage(params?.error);
+  const magicLinkEnabled = isMagicLinkEnabled();
 
   return (
     <main className="overflow-hidden bg-[#f7f1e8] text-slate-950">
@@ -36,7 +38,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Đăng nhập
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-slate-500">
-            Nhập Gmail hoặc dùng Google để truy cập task nội bộ.
+            {magicLinkEnabled
+              ? "Nhập email hoặc dùng Google để truy cập task nội bộ."
+              : "Dùng Google để truy cập task nội bộ."}
           </p>
 
           {errorMessage ? (
@@ -59,12 +63,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </div>
           ) : (
             <div>
-              <MagicLinkForm redirectTo={callbackUrl} />
-              <div className="my-5 flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" />
-                hoặc
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
+              {magicLinkEnabled ? (
+                <>
+                  <MagicLinkForm redirectTo={callbackUrl} />
+                  <div className="my-5 flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                    <span className="h-px flex-1 bg-slate-200" />
+                    hoặc
+                    <span className="h-px flex-1 bg-slate-200" />
+                  </div>
+                </>
+              ) : null}
               <form
                 action={async () => {
                   "use server";

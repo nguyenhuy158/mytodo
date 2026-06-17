@@ -75,6 +75,22 @@ Writable fields are:
 
 `actualDate` must be empty or `YYYY-MM-DD`.
 
+## Backup And Restore Sheet Data
+
+From the shared header, click `Backup`.
+
+- `Backup now` creates a local JSON snapshot under `.task-backups`.
+- `Restore` requires typing `RESTORE`; the server creates a safety backup first, then writes the selected snapshot back to the current Sheet.
+- Backup files contain row values only, not Google credentials.
+
+From terminal with an authenticated browser session cookie:
+
+```bash
+curl -X POST "http://localhost:3000/api/task-backups" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"create"}'
+```
+
 ## Troubleshooting
 
 ### `Cần cấu hình Google Service Account`
@@ -111,8 +127,9 @@ back to `false` after the issue is fixed.
 
 Likely causes:
 
-- `MAGIC_LINK_SMTP_HOST`, `MAGIC_LINK_SMTP_USER`, or `MAGIC_LINK_SMTP_PASS` missing
-- Gmail sender does not have 2-Step Verification and App Password enabled
+- `RESEND_API_KEY` or `MAGIC_LINK_FROM` missing; in that state `/login` hides magic-link login
+- Resend API key is invalid or does not have sending access
+- Resend sender domain is not verified
 - `APP_BASE_URL` points to the wrong local port or deploy domain
 - target email is not listed in `AUTH_ALLOWED_EMAILS`
 - the link expired; default TTL is `MAGIC_LINK_TTL_MINUTES=15`
@@ -123,8 +140,9 @@ Run:
 make env-check
 ```
 
-Then try `/login` again. The UI intentionally returns a generic success message
-for unknown emails so the app does not reveal the whitelist.
+Then try `/login` again. If Resend is configured, the UI intentionally returns a
+generic success message for unknown emails so the app does not reveal the
+whitelist.
 
 ### `File không phải Google Sheet hoặc XLSX`
 

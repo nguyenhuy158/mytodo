@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { mutate } from "swr";
 import type { TaskCreateInput, TasksPayload } from "@/lib/tasks";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
+import { TaskBackupDialog } from "@/components/task-backup-dialog";
 import { TaskCreateDialog } from "@/components/task-create-dialog";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +78,7 @@ const fetchTasks = async (url: string): Promise<TasksPayload> => {
 export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const pathname = usePathname();
   const navLinkRefs = useRef(new Map<string, HTMLAnchorElement>());
+  const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -281,6 +283,14 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             </button>
             <button
               type="button"
+              onClick={() => setIsBackupOpen(true)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/70 px-4 text-sm font-black text-slate-700 shadow-lg shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+            >
+              <AppIcon name="databaseBackup" className="size-4" />
+              Backup
+            </button>
+            <button
+              type="button"
               onClick={handleRefresh}
               disabled={isRefreshing}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-teal-900 disabled:cursor-wait disabled:opacity-70"
@@ -302,6 +312,9 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
           onSubmit={handleCreateTask}
         />
       ) : null}
+      {isBackupOpen ? (
+        <TaskBackupDialog onClose={() => setIsBackupOpen(false)} />
+      ) : null}
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex items-end gap-2 lg:hidden">
         {userEmail ? (
           <button
@@ -318,6 +331,14 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             )}
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setIsBackupOpen(true)}
+          className="inline-flex size-12 items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-950 shadow-xl shadow-slate-900/15 backdrop-blur-xl transition hover:-translate-y-0.5 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+          aria-label="Backup / Restore dữ liệu"
+        >
+          <AppIcon name="databaseBackup" className="size-5" />
+        </button>
         <button
           type="button"
           onClick={handleRefresh}

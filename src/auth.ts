@@ -26,6 +26,12 @@ const nextAuth = NextAuth({
           return null;
         }
 
+        const { isMagicLinkEnabled } = await import("@/lib/magic-link");
+
+        if (!isMagicLinkEnabled()) {
+          return null;
+        }
+
         const { verifyMagicLoginToken } = await import("@/lib/magic-token");
         const payload = verifyMagicLoginToken(token, { consume: true });
 

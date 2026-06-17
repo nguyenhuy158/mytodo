@@ -112,24 +112,38 @@ if (!allowedEmails.length || allowedEmails.some((email) => !email.includes("@"))
   fail("AUTH_ALLOWED_EMAILS must contain one or more email addresses.");
 }
 
-const magicKeys = [
-  "MAGIC_LINK_SMTP_HOST",
-  "MAGIC_LINK_SMTP_USER",
-  "MAGIC_LINK_SMTP_PASS",
-];
+const magicKeys = ["RESEND_API_KEY", "MAGIC_LINK_FROM"];
 const hasMagic = magicKeys.some((key) => (env[key] || "").trim());
 const missingMagic = hasMagic
   ? magicKeys.filter((key) => !(env[key] || "").trim())
   : [];
 
 if (missingMagic.length) {
-  fail(`Missing magic link SMTP env: ${missingMagic.join(", ")}`);
+  fail(
+    `Missing Resend magic link env: ${missingMagic.join(", ")}. Set both RESEND_API_KEY and MAGIC_LINK_FROM, or remove both to keep Google-only login.`,
+  );
 }
 
-const magicPort = env.MAGIC_LINK_SMTP_PORT;
+const deprecatedSmtpKeys = [
+  "MAGIC_LINK_SMTP_HOST",
+  "MAGIC_LINK_SMTP_PORT",
+  "MAGIC_LINK_SMTP_USER",
+  "MAGIC_LINK_SMTP_PASS",
+].filter((key) => (env[key] || "").trim());
 
-if (magicPort && (!Number.isFinite(Number(magicPort)) || Number(magicPort) <= 0)) {
-  fail("MAGIC_LINK_SMTP_PORT must be a positive number.");
+if (deprecatedSmtpKeys.length) {
+  console.warn(
+    `Ignoring deprecated SMTP magic-link env: ${deprecatedSmtpKeys.join(", ")}. Use RESEND_API_KEY and MAGIC_LINK_FROM to enable magic-link login.`,
+  );
+}
+
+const magicTtlMinutes = env.MAGIC_LINK_TTL_MINUTES;
+
+if (
+  magicTtlMinutes &&
+  (!Number.isFinite(Number(magicTtlMinutes)) || Number(magicTtlMinutes) <= 0)
+) {
+  fail("MAGIC_LINK_TTL_MINUTES must be a positive number.");
 }
 
 if (env.APP_BASE_URL) {

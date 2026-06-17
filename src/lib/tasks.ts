@@ -8,6 +8,7 @@ export type TaskStatus =
 export type TaskPriority = "High" | "Medium" | "Low" | "Unknown";
 
 export type TaskCacheStatus = "hit" | "miss" | "refresh";
+export type TaskBackupSource = "google-sheet" | "xlsx";
 
 export type TaskUpdateInput = {
   rowNumber: number;
@@ -73,6 +74,38 @@ export type TasksPayload = {
     pollingMs: number;
     cache: TaskCacheMeta;
   };
+};
+
+export type TaskBackupSnapshot = {
+  version: 1;
+  createdAt: string;
+  source: TaskBackupSource;
+  spreadsheetId: string;
+  sheetTitle: string;
+  range: string;
+  rowCount: number;
+  columnCount: number;
+  taskCount: number;
+  rows: string[][];
+};
+
+export type TaskBackupSummary = Omit<TaskBackupSnapshot, "rows"> & {
+  id: string;
+  note?: string;
+};
+
+export type TaskBackupRecord = TaskBackupSummary & {
+  rows: string[][];
+};
+
+export type TaskBackupsPayload = {
+  backups: TaskBackupSummary[];
+};
+
+export type TaskBackupMutationPayload = TaskBackupsPayload & {
+  backup: TaskBackupSummary;
+  safetyBackup?: TaskBackupSummary;
+  tasksPayload?: TasksPayload;
 };
 
 export function normalizeStatus(value: string): TaskStatus {

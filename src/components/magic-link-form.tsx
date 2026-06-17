@@ -45,7 +45,7 @@ export function MagicLinkForm({ redirectTo }: MagicLinkFormProps) {
 
       setSubmitState({
         kind: "success",
-        message: payload.message ?? "Kiểm tra Gmail để đăng nhập.",
+        message: payload.message ?? "Kiểm tra email để đăng nhập.",
       });
     } catch (error) {
       setSubmitState({
@@ -69,7 +69,7 @@ export function MagicLinkForm({ redirectTo }: MagicLinkFormProps) {
         inputMode="email"
         autoComplete="email"
         required
-        placeholder="Nhập Gmail được cấp quyền"
+        placeholder="Nhập email được cấp quyền"
         className="h-14 rounded-full border border-white bg-white/85 px-5 text-center text-sm font-bold text-slate-900 shadow-inner shadow-slate-900/5 outline-none transition placeholder:text-slate-400 focus:border-teal-300 focus:ring-4 focus:ring-teal-100"
       />
       <button

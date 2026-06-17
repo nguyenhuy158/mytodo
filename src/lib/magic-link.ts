@@ -1,11 +1,13 @@
 import "server-only";
 
-import nodemailer from "nodemailer";
 import { isEmailAllowed } from "@/lib/auth-config";
 import {
   createMagicLoginToken,
   getMagicLinkTtlMinutes,
 } from "@/lib/magic-token";
+
+const RESEND_EMAILS_ENDPOINT = "https://api.resend.com/emails";
+const RESEND_USER_AGENT = "mytodo/0.1.0";
 
 export type MagicLinkSendResult =
   | { ok: true; skipped?: false }
@@ -15,6 +17,15 @@ export type MagicLinkSendResult =
       code: "EMAIL_NOT_CONFIGURED" | "EMAIL_SEND_FAILED";
       message: string;
     };
+
+type ResendConfig = {
+  apiKey: string;
+  from: string;
+};
+
+export function isMagicLinkEnabled() {
+  return getResendConfig() !== null;
+}
 
 export function createMagicLoginUrl({
   email,
@@ -50,53 +61,77 @@ export async function sendMagicLoginEmail({
     return { ok: true, skipped: true };
   }
 
-  const transportConfig = getSmtpConfig();
+  const resendConfig = getResendConfig();
 
-  if (!transportConfig) {
+  if (!resendConfig) {
     return {
       ok: false,
       code: "EMAIL_NOT_CONFIGURED",
-      message: "Chưa cấu hình SMTP để gửi magic link.",
+      message: "Chưa cấu hình Resend để gửi magic link.",
     };
   }
 
   try {
-    const transporter = nodemailer.createTransport(transportConfig);
     const host = new URL(loginUrl).host;
     const ttlMinutes = getMagicLinkTtlMinutes();
+    const subject = "Đăng nhập 2026 Tasks";
+    const text = [
+      subject,
+      "",
+      `Mở link này để đăng nhập: ${loginUrl}`,
+      "",
+      `Link hết hạn sau ${ttlMinutes} phút.`,
+      `Nếu bạn không yêu cầu đăng nhập ${host}, bỏ qua email này.`,
+    ].join("\n");
+    const html = [
+      '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">',
+      "<h2>Đăng nhập 2026 Tasks</h2>",
+      `<p>Bấm nút bên dưới để đăng nhập. Link hết hạn sau ${ttlMinutes} phút.</p>`,
+      `<p><a href="${escapeHtml(loginUrl)}" style="display:inline-block;border-radius:999px;background:#020617;color:#fff;padding:12px 20px;text-decoration:none;font-weight:700">Đăng nhập</a></p>`,
+      '<p style="font-size:13px;color:#64748b">Nếu nút không hoạt động, mở link này:</p>',
+      `<p style="font-size:13px;word-break:break-all"><a href="${escapeHtml(loginUrl)}">${escapeHtml(loginUrl)}</a></p>`,
+      `<p style="font-size:13px;color:#64748b">Nếu bạn không yêu cầu đăng nhập ${escapeHtml(host)}, bỏ qua email này.</p>`,
+      "</div>",
+    ].join("");
 
-    await transporter.sendMail({
-      from: getMagicLinkFrom(),
-      to: email,
-      subject: "Đăng nhập 2026 Tasks",
-      text: [
-        "Đăng nhập 2026 Tasks",
-        "",
-        `Mở link này để đăng nhập: ${loginUrl}`,
-        "",
-        `Link hết hạn sau ${ttlMinutes} phút.`,
-        `Nếu bạn không yêu cầu đăng nhập ${host}, bỏ qua email này.`,
-      ].join("\n"),
-      html: [
-        '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">',
-        "<h2>Đăng nhập 2026 Tasks</h2>",
-        `<p>Bấm nút bên dưới để đăng nhập. Link hết hạn sau ${ttlMinutes} phút.</p>`,
-        `<p><a href="${escapeHtml(loginUrl)}" style="display:inline-block;border-radius:999px;background:#020617;color:#fff;padding:12px 20px;text-decoration:none;font-weight:700">Đăng nhập</a></p>`,
-        '<p style="font-size:13px;color:#64748b">Nếu nút không hoạt động, mở link này:</p>',
-        `<p style="font-size:13px;word-break:break-all"><a href="${escapeHtml(loginUrl)}">${escapeHtml(loginUrl)}</a></p>`,
-        `<p style="font-size:13px;color:#64748b">Nếu bạn không yêu cầu đăng nhập ${escapeHtml(host)}, bỏ qua email này.</p>`,
-        "</div>",
-      ].join(""),
+    const response = await fetch(RESEND_EMAILS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendConfig.apiKey}`,
+        "Content-Type": "application/json",
+        "User-Agent": RESEND_USER_AGENT,
+      },
+      body: JSON.stringify({
+        from: resendConfig.from,
+        to: [email],
+        subject,
+        text,
+        html,
+      }),
     });
+
+    if (!response.ok) {
+      const responseBody = await response.text().catch(() => "");
+      console.error("Magic link Resend email send failed", {
+        status: response.status,
+        body: responseBody,
+      });
+
+      return {
+        ok: false,
+        code: "EMAIL_SEND_FAILED",
+        message: "Không gửi được magic link. Kiểm tra Resend config.",
+      };
+    }
 
     return { ok: true };
   } catch (error) {
-    console.error("Magic link email send failed", error);
+    console.error("Magic link Resend email send failed", error);
 
     return {
       ok: false,
       code: "EMAIL_SEND_FAILED",
-      message: "Không gửi được magic link. Kiểm tra SMTP Gmail config.",
+      message: "Không gửi được magic link. Kiểm tra Resend config.",
     };
   }
 }
@@ -111,33 +146,18 @@ function getPublicBaseUrl(requestUrl: string) {
   return new URL(requestUrl).origin;
 }
 
-function getSmtpConfig() {
-  const host = process.env.MAGIC_LINK_SMTP_HOST?.trim();
-  const user = process.env.MAGIC_LINK_SMTP_USER?.trim();
-  const pass = process.env.MAGIC_LINK_SMTP_PASS?.trim();
-  const port = Number(process.env.MAGIC_LINK_SMTP_PORT ?? 465);
+function getResendConfig(): ResendConfig | null {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.MAGIC_LINK_FROM?.trim();
 
-  if (!host || !user || !pass) {
+  if (!apiKey || !from) {
     return null;
   }
 
   return {
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
+    apiKey,
+    from,
   };
-}
-
-function getMagicLinkFrom() {
-  return (
-    process.env.MAGIC_LINK_FROM?.trim() ||
-    process.env.MAGIC_LINK_SMTP_USER?.trim() ||
-    "2026 Tasks <no-reply@example.com>"
-  );
 }
 
 function escapeHtml(value: string) {

@@ -32,11 +32,10 @@ AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
 APP_BASE_URL=https://your-domain.com
-MAGIC_LINK_SMTP_HOST=smtp.gmail.com
-MAGIC_LINK_SMTP_PORT=465
-MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
-MAGIC_LINK_SMTP_PASS=your-gmail-app-password
-MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+# RESEND_API_KEY=re_xxxxxxxxx
+# MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
+RESEND_API_KEY=
+MAGIC_LINK_FROM=
 MAGIC_LINK_TTL_MINUTES=15
 ```
 
@@ -57,7 +56,8 @@ https://your-domain.com/api/auth/callback/google
 
 8. Deploy.
 
-Magic-link login does not need a Google OAuth callback, but `APP_BASE_URL` must
+Magic-link login does not need a Google OAuth callback, but it only appears when
+`RESEND_API_KEY` and `MAGIC_LINK_FROM` are both configured. `APP_BASE_URL` must
 match the public Dokploy domain so the email link points back to the deployed
 site.
 
@@ -92,8 +92,9 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----
 
 Set `AUTH_DEBUG=true` only while debugging login issues, then switch it back to `false`.
 
-For Gmail magic-link login, use a Gmail App Password in `MAGIC_LINK_SMTP_PASS`.
-Do not use the normal Gmail password.
+For magic-link login, use a Resend sender from a verified domain in
+`MAGIC_LINK_FROM`. If Resend is not configured, users can still log in with
+Google only.
 
 ## Local Docker Test
 

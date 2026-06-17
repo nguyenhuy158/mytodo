@@ -8,7 +8,7 @@
 - Tailwind CSS v4
 - SWR for polling
 - Google APIs for Sheets/Drive access
-- Auth.js / NextAuth for Google login and magic-link sessions
+- Auth.js / NextAuth for Google login and optional Resend magic-link sessions
 - ExcelJS for Office `.xlsx` parsing
 - Recharts for charts
 - Sonner for toasts
@@ -23,8 +23,9 @@
 | `/tasks` | Paginated task board | `src/app/tasks/page.tsx` |
 | `/kanban` | Kanban board grouped by status | `src/app/kanban/page.tsx` |
 | `/week` | Current week deadline board | `src/app/week/page.tsx` |
-| `/login` | Google login, magic-link login, and access-denied state | `src/app/login/page.tsx` |
+| `/login` | Google login, optional magic-link login, and access-denied state | `src/app/login/page.tsx` |
 | `/api/tasks` | Server API for tasks | `src/app/api/tasks/route.ts` |
+| `/api/task-backups` | Server API for backup and restore | `src/app/api/task-backups/route.ts` |
 | `/api/auth/[...nextauth]` | Auth.js Google OAuth handlers | `src/app/api/auth/[...nextauth]/route.ts` |
 | `/api/auth/magic/request` | Send a whitelisted magic login link by email | `src/app/api/auth/magic/request/route.ts` |
 | `/api/auth/magic/callback` | Verify magic token and create Auth.js session | `src/app/api/auth/magic/callback/route.ts` |
@@ -62,10 +63,10 @@ Client code never reads Google credentials. All Google API calls happen on the s
 ## Access Control
 
 - `src/proxy.ts` redirects unauthenticated page requests to `/login`.
-- `/api/tasks` returns `401` or `403` JSON instead of task data when the session is missing or the email is not allowed.
+- `/api/tasks` and `/api/task-backups` return `401` or `403` JSON when the session is missing or the email is not allowed.
 - Allowed viewer emails come from `AUTH_ALLOWED_EMAILS`.
 - Google Sheet service-account credentials stay server-side and separate from Google login.
-- Magic links are HMAC-signed with `AUTH_SECRET`, expire after `MAGIC_LINK_TTL_MINUTES`, and only work for `AUTH_ALLOWED_EMAILS`.
+- Magic links are enabled only when `RESEND_API_KEY` and `MAGIC_LINK_FROM` are configured. They are HMAC-signed with `AUTH_SECRET`, expire after `MAGIC_LINK_TTL_MINUTES`, and only work for `AUTH_ALLOWED_EMAILS`.
 
 Write-back flow:
 
@@ -77,6 +78,19 @@ Write-back flow:
   -> or Drive download + ExcelJS edit + Drive upload for XLSX
   -> clear server cache
   -> force refresh tasks
+```
+
+Backup/restore flow:
+
+```txt
+Shared header Backup button
+  -> GET /api/task-backups for backup metadata
+  -> POST /api/task-backups action=create
+  -> save row snapshot under .task-backups
+  -> POST /api/task-backups action=restore with RESTORE confirmation
+  -> create safety backup of current data
+  -> restore selected snapshot to Google Sheet or XLSX
+  -> clear server cache and force refresh tasks
 ```
 
 ## Google Sheet Reader
@@ -107,6 +121,10 @@ Write-back is intentionally limited to:
 - `Actual Da`
 - `Note`
 
+Full-row restore is available only through `/api/task-backups` and requires an
+explicit restore confirmation. Backup files contain row values, not Google
+credentials, and `.task-backups/` is ignored by git.
+
 ## Cache
 
 Task data is cached in server memory in `src/lib/google-sheets.ts`.
@@ -115,6 +133,7 @@ Task data is cached in server memory in `src/lib/google-sheets.ts`.
 - Normal polling hits `/api/tasks` and may return cached data.
 - The shared `Reload` button uses `/api/tasks?force=1`.
 - Successful `PATCH /api/tasks` clears cache and returns a refreshed payload.
+- Successful restore through `/api/task-backups` clears cache and returns a refreshed task payload.
 - Response metadata includes `meta.cache.status`:
   - `hit`
   - `miss`

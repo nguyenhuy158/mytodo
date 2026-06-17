@@ -9,6 +9,9 @@ import {
   normalizeStatus,
   parseSheetDate,
   parseTimelineDays,
+  type TaskBackupRecord,
+  type TaskBackupSnapshot,
+  type TaskBackupSource,
   type SheetTask,
   type TaskCacheStatus,
   type TaskCreateInput,
@@ -103,6 +106,14 @@ type SheetCacheEntry = {
 
 type GetSheetTasksOptions = {
   forceRefresh?: boolean;
+};
+
+type SheetRowsSnapshot = {
+  source: TaskBackupSource;
+  spreadsheetId: string;
+  sheetTitle: string;
+  range: string;
+  rows: string[][];
 };
 
 let sheetTaskCache: SheetCacheEntry | null = null;
@@ -212,6 +223,85 @@ export async function createSheetTask(input: TaskCreateInput): Promise<void> {
   );
 }
 
+export async function createSheetBackupSnapshot(): Promise<TaskBackupSnapshot> {
+  const snapshot = await readSheetRowsSnapshot(getRuntimeConfig());
+  const tasks = parseRows(snapshot.rows);
+  const createdAt = new Date().toISOString();
+
+  return {
+    version: 1,
+    createdAt,
+    source: snapshot.source,
+    spreadsheetId: snapshot.spreadsheetId,
+    sheetTitle: snapshot.sheetTitle,
+    range: snapshot.range,
+    rowCount: snapshot.rows.length,
+    columnCount: getRowsColumnCount(snapshot.rows),
+    taskCount: tasks.length,
+    rows: snapshot.rows,
+  };
+}
+
+export async function restoreSheetBackupSnapshot(
+  backup: TaskBackupRecord,
+): Promise<void> {
+  if (backup.version !== 1) {
+    throw new SheetConfigError("Backup version không được hỗ trợ.");
+  }
+
+  const { spreadsheetId } = getRuntimeConfig();
+
+  if (backup.spreadsheetId !== spreadsheetId) {
+    throw new SheetConfigError(
+      "Backup không thuộc spreadsheet hiện tại. Không restore để tránh ghi nhầm file.",
+    );
+  }
+
+  const auth = getAuthClient();
+  const drive = google.drive({
+    version: "v3",
+    auth,
+  });
+  const sheets = google.sheets({
+    version: "v4",
+    auth,
+  });
+  const metadata = await drive.files.get({
+    fileId: spreadsheetId,
+    fields: "mimeType,name",
+  });
+
+  if (metadata.data.mimeType === GOOGLE_SHEET_MIME_TYPE) {
+    if (backup.source !== "google-sheet") {
+      throw new SheetConfigError(
+        "Backup này là XLSX, nhưng nguồn hiện tại là Google Sheet.",
+      );
+    }
+
+    await restoreNativeSheetRows(sheets, spreadsheetId, backup);
+    clearSheetTaskCache();
+
+    return;
+  }
+
+  if (metadata.data.mimeType && XLSX_MIME_TYPES.has(metadata.data.mimeType)) {
+    if (backup.source !== "xlsx") {
+      throw new SheetConfigError(
+        "Backup này là Google Sheet, nhưng nguồn hiện tại là XLSX.",
+      );
+    }
+
+    await restoreXlsxRows(drive, spreadsheetId, backup);
+    clearSheetTaskCache();
+
+    return;
+  }
+
+  throw new SheetConfigError(
+    `File không phải Google Sheet hoặc XLSX. MIME type: ${metadata.data.mimeType ?? "unknown"}.`,
+  );
+}
+
 function getRuntimeConfig(): SheetRuntimeConfig {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID ?? DEFAULT_SPREADSHEET_ID;
   const pollingMs = toPositiveNumber(
@@ -264,7 +354,21 @@ async function refreshSheetTaskCache(
 }
 
 async function readSheetTasks(config: SheetRuntimeConfig): Promise<TasksPayload> {
-  const { spreadsheetId, pollingMs } = config;
+  const snapshot = await readSheetRowsSnapshot(config);
+
+  return toPayload({
+    rows: snapshot.rows,
+    sheetTitle: snapshot.sheetTitle,
+    range: snapshot.range,
+    spreadsheetId: snapshot.spreadsheetId,
+    pollingMs: config.pollingMs,
+  });
+}
+
+async function readSheetRowsSnapshot(
+  config: SheetRuntimeConfig,
+): Promise<SheetRowsSnapshot> {
+  const { spreadsheetId } = config;
   const auth = getAuthClient();
   const drive = google.drive({
     version: "v3",
@@ -293,26 +397,26 @@ async function readSheetTasks(config: SheetRuntimeConfig): Promise<TasksPayload>
 
     const rows = response.data.values ?? [];
 
-    return toPayload({
+    return {
+      source: "google-sheet",
       rows,
       sheetTitle,
       range,
       spreadsheetId,
-      pollingMs,
-    });
+    };
   }
 
   if (metadata.data.mimeType && XLSX_MIME_TYPES.has(metadata.data.mimeType)) {
     const { rows, sheetTitle } = await readXlsxRowsFromDrive(drive, spreadsheetId);
     const range = `${quoteSheetName(sheetTitle)}!A1:O`;
 
-    return toPayload({
+    return {
+      source: "xlsx",
       rows,
       sheetTitle,
       range,
       spreadsheetId,
-      pollingMs,
-    });
+    };
   }
 
   throw new SheetConfigError(
@@ -478,6 +582,34 @@ async function appendNativeSheetTask(
   });
 }
 
+async function restoreNativeSheetRows(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  backup: TaskBackupRecord,
+) {
+  const sheetTitle = await resolveSheetTitle(sheets, spreadsheetId);
+  const columnCount = Math.max(backup.columnCount, getRowsColumnCount(backup.rows), 1);
+  const clearRange = `${quoteSheetName(sheetTitle)}!A:${toColumnLetter(columnCount - 1)}`;
+
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: clearRange,
+  });
+
+  if (!backup.rows.length) {
+    return;
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${quoteSheetName(sheetTitle)}!A1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: backup.rows,
+    },
+  });
+}
+
 async function updateXlsxTask(
   drive: ReturnType<typeof google.drive>,
   spreadsheetId: string,
@@ -527,6 +659,60 @@ async function appendXlsxTask(
   const row = worksheet.addRow(buildTaskCreateRow(headerIndexes, input));
 
   row.commit();
+
+  const content = await workbook.xlsx.writeBuffer();
+  const buffer = Buffer.isBuffer(content)
+    ? content
+    : Buffer.from(content as ArrayBuffer);
+
+  await drive.files.update({
+    fileId: spreadsheetId,
+    requestBody: {
+      mimeType: XLSX_FILE_MIME_TYPE,
+    },
+    media: {
+      mimeType: XLSX_FILE_MIME_TYPE,
+      body: Readable.from(buffer),
+    },
+  });
+}
+
+async function restoreXlsxRows(
+  drive: ReturnType<typeof google.drive>,
+  spreadsheetId: string,
+  backup: TaskBackupRecord,
+) {
+  const { workbook, worksheet } = await loadXlsxWorkbookFromDrive(
+    drive,
+    spreadsheetId,
+  );
+  const rowCount = Math.max(worksheet.rowCount, backup.rowCount, backup.rows.length);
+  const columnCount = Math.max(
+    worksheet.columnCount,
+    backup.columnCount,
+    getRowsColumnCount(backup.rows),
+    1,
+  );
+
+  for (let rowIndex = 1; rowIndex <= rowCount; rowIndex += 1) {
+    const row = worksheet.getRow(rowIndex);
+
+    for (let columnIndex = 1; columnIndex <= columnCount; columnIndex += 1) {
+      row.getCell(columnIndex).value = null;
+    }
+
+    row.commit();
+  }
+
+  backup.rows.forEach((values, rowIndex) => {
+    const row = worksheet.getRow(rowIndex + 1);
+
+    values.forEach((value, columnIndex) => {
+      row.getCell(columnIndex + 1).value = value;
+    });
+
+    row.commit();
+  });
 
   const content = await workbook.xlsx.writeBuffer();
   const buffer = Buffer.isBuffer(content)
@@ -680,6 +866,10 @@ function formatExcelCell(cell: ExcelJS.Cell) {
   }
 
   return formatExcelValue(cell.value).trim();
+}
+
+function getRowsColumnCount(rows: string[][]) {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0);
 }
 
 function formatExcelValue(value: ExcelJS.CellValue): string {

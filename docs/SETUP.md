@@ -44,11 +44,10 @@ Optional:
 ```txt
 GOOGLE_XLSX_SHEET_NAME=To-Do List
 GOOGLE_SHEET_RANGE="'To-Do List'!A1:O"
-MAGIC_LINK_SMTP_HOST=smtp.gmail.com
-MAGIC_LINK_SMTP_PORT=465
-MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
-MAGIC_LINK_SMTP_PASS=your-gmail-app-password
-MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+# RESEND_API_KEY=re_xxxxxxxxx
+# MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
+RESEND_API_KEY=
+MAGIC_LINK_FROM=
 MAGIC_LINK_TTL_MINUTES=15
 ```
 
@@ -102,20 +101,21 @@ Set `AUTH_DEBUG=true` temporarily when debugging OAuth callback issues. Keep it
 
 ## Magic Link Login Setup
 
-Magic-link login lets a user enter Gmail on `/login`, receive a short-lived
-login link, then click it to create the same Auth.js session.
+Magic-link login lets a user enter an allowed email on `/login`, receive a short-lived
+login link through Resend, then click it to create the same Auth.js session.
+If Resend is not fully configured, the login page hides this option and keeps
+Google login only.
 
-1. Turn on 2-Step Verification for the Gmail sender account.
-2. Create a Gmail App Password.
-3. Set SMTP env values:
+1. Create a Resend API key with sending access.
+2. Verify the sender domain in Resend.
+3. Set Resend env values:
 
 ```txt
 APP_BASE_URL=http://localhost:3000
-MAGIC_LINK_SMTP_HOST=smtp.gmail.com
-MAGIC_LINK_SMTP_PORT=465
-MAGIC_LINK_SMTP_USER=your-gmail@gmail.com
-MAGIC_LINK_SMTP_PASS=your-gmail-app-password
-MAGIC_LINK_FROM="2026 Tasks <your-gmail@gmail.com>"
+# RESEND_API_KEY=re_xxxxxxxxx
+# MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
+RESEND_API_KEY=
+MAGIC_LINK_FROM=
 MAGIC_LINK_TTL_MINUTES=15
 ```
 
@@ -147,7 +147,7 @@ This checks:
 - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` decodes to a service-account JSON if set.
 - `GOOGLE_APPLICATION_CREDENTIALS` points to an existing file.
 - `AUTH_ALLOWED_EMAILS` contains at least one email.
-- if SMTP env is present, host/user/pass are all present.
+- if Resend magic-link env is present, `RESEND_API_KEY` and `MAGIC_LINK_FROM` are both present.
 
 ## Run Local Dev
 

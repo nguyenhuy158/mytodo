@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   createMagicLoginUrl,
+  isMagicLinkEnabled,
   sendMagicLoginEmail,
 } from "@/lib/magic-link";
 import {
@@ -12,6 +13,18 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  if (!isMagicLinkEnabled()) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "MAGIC_LINK_DISABLED",
+          message: "Magic link chưa được bật. Hãy đăng nhập bằng Google.",
+        },
+      },
+      { status: 503 },
+    );
+  }
+
   const payload = await request.json().catch(() => null);
   const email = normalizeEmail(typeof payload?.email === "string" ? payload.email : "");
   const redirectTo = getSafeRedirectPath(
