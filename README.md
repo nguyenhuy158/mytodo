@@ -118,7 +118,7 @@ App tự tìm dòng header có `TASK` và `Deadline`, rồi đọc các cột:
 Nếu tên sheet/range khác cấu trúc hiện tại, set thêm:
 
 ```txt
-GOOGLE_SHEET_RANGE="'To-Do List'!A1:N"
+GOOGLE_SHEET_RANGE="'To-Do List'!A1:O"
 ```
 
 ## Polling

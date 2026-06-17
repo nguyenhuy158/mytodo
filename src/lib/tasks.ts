@@ -26,6 +26,7 @@ export type TaskCreateInput = {
   details?: string;
   priority: TaskPriority;
   status: TaskStatus;
+  timeline?: string;
   dateReceived?: string;
   deadline?: string;
   actualDate?: string;
@@ -49,6 +50,8 @@ export type SheetTask = {
   details: string;
   priority: TaskPriority;
   status: TaskStatus;
+  timeline: string;
+  timelineDays: number | null;
   dateReceived: string;
   deadline: string;
   actualDate: string;
@@ -140,6 +143,24 @@ export function parseSheetDate(value: string): string | null {
   }
 
   return parsed.toISOString().slice(0, 10);
+}
+
+export function parseTimelineDays(value: string): number | null {
+  const raw = value.trim().replace(",", ".");
+
+  if (!raw) {
+    return null;
+  }
+
+  const match = raw.match(/^(\d+(?:\.\d+)?)/);
+
+  if (!match) {
+    return null;
+  }
+
+  const days = Number(match[1]);
+
+  return Number.isFinite(days) && days >= 0 ? days : null;
 }
 
 export function daysBetween(startISO: string, endISO: string) {

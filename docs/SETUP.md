@@ -43,7 +43,7 @@ Optional:
 
 ```txt
 GOOGLE_XLSX_SHEET_NAME=To-Do List
-GOOGLE_SHEET_RANGE="'To-Do List'!A1:N"
+GOOGLE_SHEET_RANGE="'To-Do List'!A1:O"
 MAGIC_LINK_SMTP_HOST=smtp.gmail.com
 MAGIC_LINK_SMTP_PORT=465
 MAGIC_LINK_SMTP_USER=your-gmail@gmail.com

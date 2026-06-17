@@ -11,6 +11,7 @@ import type {
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
+import { TaskTimelinePill } from "@/components/task-timeline";
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
@@ -502,6 +503,10 @@ function KanbanCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <PriorityPill priority={task.priority} />
+          <TaskTimelinePill
+            task={task}
+            className="px-2 py-1 text-[0.65rem]"
+          />
           {task.system ? (
             <span className="rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600">
               {task.system}
@@ -692,6 +697,7 @@ function matchesQuery(task: SheetTask, normalizedQuery: string) {
     task.system,
     task.priority,
     task.status,
+    task.timeline,
   ]
     .join(" ")
     .toLowerCase()

@@ -8,6 +8,7 @@ import {
   normalizePriority,
   normalizeStatus,
   parseSheetDate,
+  parseTimelineDays,
   type SheetTask,
   type TaskCacheStatus,
   type TaskCreateInput,
@@ -37,6 +38,7 @@ type HeaderKey =
   | "details"
   | "priority"
   | "status"
+  | "timeline"
   | "dateReceived"
   | "deadline"
   | "actualDate"
@@ -49,6 +51,7 @@ const HEADER_ALIASES: Record<HeaderKey, string[]> = {
   details: ["details", "detail"],
   priority: ["priority", "priori"],
   status: ["status"],
+  timeline: ["timeline", "time line", "duration", "duration days"],
   dateReceived: ["date rec", "date received", "received date"],
   deadline: ["deadline", "due date"],
   actualDate: ["actual da", "actual date", "actual"],
@@ -63,6 +66,7 @@ type CreatableHeaderKey =
   | "details"
   | "priority"
   | "status"
+  | "timeline"
   | "dateReceived"
   | "deadline"
   | "actualDate"
@@ -278,7 +282,7 @@ async function readSheetTasks(config: SheetRuntimeConfig): Promise<TasksPayload>
   if (metadata.data.mimeType === GOOGLE_SHEET_MIME_TYPE) {
     const sheetTitle = await resolveSheetTitle(sheets, spreadsheetId);
     const range =
-      process.env.GOOGLE_SHEET_RANGE ?? `${quoteSheetName(sheetTitle)}!A1:N`;
+      process.env.GOOGLE_SHEET_RANGE ?? `${quoteSheetName(sheetTitle)}!A1:O`;
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range,
@@ -300,7 +304,7 @@ async function readSheetTasks(config: SheetRuntimeConfig): Promise<TasksPayload>
 
   if (metadata.data.mimeType && XLSX_MIME_TYPES.has(metadata.data.mimeType)) {
     const { rows, sheetTitle } = await readXlsxRowsFromDrive(drive, spreadsheetId);
-    const range = `${quoteSheetName(sheetTitle)}!A1:N`;
+    const range = `${quoteSheetName(sheetTitle)}!A1:O`;
 
     return toPayload({
       rows,
@@ -421,7 +425,7 @@ async function updateNativeSheetTask(
 ) {
   const sheetTitle = await resolveSheetTitle(sheets, spreadsheetId);
   const range =
-    process.env.GOOGLE_SHEET_RANGE ?? `${quoteSheetName(sheetTitle)}!A1:N`;
+    process.env.GOOGLE_SHEET_RANGE ?? `${quoteSheetName(sheetTitle)}!A1:O`;
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range,
@@ -452,7 +456,7 @@ async function appendNativeSheetTask(
 ) {
   const sheetTitle = await resolveSheetTitle(sheets, spreadsheetId);
   const range =
-    process.env.GOOGLE_SHEET_RANGE ?? `${quoteSheetName(sheetTitle)}!A1:N`;
+    process.env.GOOGLE_SHEET_RANGE ?? `${quoteSheetName(sheetTitle)}!A1:O`;
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range,
@@ -824,6 +828,7 @@ function buildTaskCreateRow(
     details: input.details ?? "",
     priority: input.priority,
     status: input.status,
+    timeline: input.timeline ?? "",
     dateReceived: input.dateReceived ?? "",
     deadline: input.deadline ?? "",
     actualDate: input.actualDate ?? "",
@@ -912,6 +917,7 @@ function toTask(
   const dateReceived = getCell(row, indexes.dateReceived);
   const deadline = getCell(row, indexes.deadline);
   const actualDate = getCell(row, indexes.actualDate);
+  const timeline = getCell(row, indexes.timeline);
   const startDateISO = parseSheetDate(dateReceived);
   const deadlineISO = parseSheetDate(deadline);
   const actualDateISO = parseSheetDate(actualDate);
@@ -928,6 +934,8 @@ function toTask(
     details: getCell(row, indexes.details),
     priority: normalizePriority(getCell(row, indexes.priority)),
     status,
+    timeline,
+    timelineDays: parseTimelineDays(timeline),
     dateReceived: startDateISO
       ? formatISODateForDisplay(startDateISO)
       : dateReceived,

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { SheetTask, TaskPriority, TaskStatus } from "@/lib/tasks";
+import { formatTaskTimeline } from "@/components/task-timeline";
 import { cn } from "@/lib/utils";
 
 export function TaskDetailDialog({
@@ -67,6 +68,7 @@ export function TaskDetailDialog({
           <div className="mt-4 flex flex-wrap gap-2">
             <StatusPill status={task.status} />
             <PriorityPill priority={task.priority} />
+            <DetailBadge label="Timeline" value={formatTaskTimeline(task)} />
             <DetailBadge label="System" value={task.system} />
             <DetailBadge label="Tags" value={task.tags} />
           </div>
@@ -115,6 +117,10 @@ export function TaskDetailDialog({
                   Status health
                 </h3>
                 <div className="mt-4 grid gap-3">
+                  <DetailField
+                    label="Timeline"
+                    value={formatDetailValue(formatTaskTimeline(task))}
+                  />
                   <DetailField
                     label="Days left"
                     value={formatDaysLeft(task.daysLeft, task.status)}

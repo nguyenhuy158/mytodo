@@ -31,6 +31,7 @@ const TASK_PRIORITY_OPTIONS: TaskPriority[] = [
   "Unknown",
 ];
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIMELINE_DAYS_PATTERN = /^\d+(?:\.\d+)?$/;
 
 class RequestValidationError extends Error {
   constructor(message: string) {
@@ -232,6 +233,7 @@ function parseTaskCreateInput(payload: unknown): TaskCreateInput {
     details: getOptionalString(payload, "details"),
     priority: getOptionalPriority(payload, "priority") ?? "Medium",
     status: getOptionalStatus(payload, "status") ?? "Not Started",
+    timeline: getOptionalTimeline(payload, "timeline"),
     dateReceived:
       getOptionalISODate(payload, "dateReceived") ?? getTodayISODate(),
     deadline: getOptionalISODate(payload, "deadline"),
@@ -373,6 +375,36 @@ function getOptionalISODate(payload: Record<string, unknown>, key: string) {
   }
 
   return value.trim();
+}
+
+function getOptionalTimeline(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const text = typeof value === "number" ? String(value) : value;
+
+  if (typeof text !== "string") {
+    throw new RequestValidationError(
+      `${key} phải rỗng hoặc là số ngày không âm.`,
+    );
+  }
+
+  const normalized = text.trim().replace(",", ".");
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (!TIMELINE_DAYS_PATTERN.test(normalized)) {
+    throw new RequestValidationError(
+      `${key} phải rỗng hoặc là số ngày không âm.`,
+    );
+  }
+
+  return normalized;
 }
 
 function getTodayISODate() {

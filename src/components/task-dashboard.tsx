@@ -25,6 +25,10 @@ import type {
 } from "@/lib/tasks";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
+import {
+  formatTaskTimeline,
+  TaskTimelinePill,
+} from "@/components/task-timeline";
 import { cn } from "@/lib/utils";
 
 const SHEET_URL =
@@ -149,6 +153,7 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
               task.system,
               task.priority,
               task.status,
+              task.timeline,
             ]
               .join(" ")
               .toLowerCase()
@@ -976,6 +981,7 @@ function TaskRow({
   onTaskUpdate: (input: TaskUpdateInput) => Promise<void>;
 }) {
   const position = getTaskPosition(task, timeline);
+  const timelineLabel = formatTaskTimeline(task);
   const [isEditing, setIsEditing] = useState(false);
   const [draftStatus, setDraftStatus] = useState<TaskStatus>(task.status);
   const [draftPriority, setDraftPriority] = useState<TaskPriority>(
@@ -1052,6 +1058,7 @@ function TaskRow({
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill status={task.status} />
           <PriorityPill priority={task.priority} />
+          <TaskTimelinePill task={task} />
           {task.system ? (
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
               {task.system}
@@ -1204,6 +1211,11 @@ function TaskRow({
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div className="font-bold text-slate-700">
             {task.dateReceived || "No start"} → {task.deadline || "No deadline"}
+            {timelineLabel ? (
+              <span className="mt-1 block text-xs font-black text-indigo-700">
+                Dự kiến: {timelineLabel}
+              </span>
+            ) : null}
           </div>
           <div
             className={cn(

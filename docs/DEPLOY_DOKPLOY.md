@@ -43,7 +43,7 @@ MAGIC_LINK_TTL_MINUTES=15
 Optional values:
 
 ```env
-GOOGLE_SHEET_RANGE="'To-Do List'!A1:N"
+GOOGLE_SHEET_RANGE="'To-Do List'!A1:O"
 GOOGLE_XLSX_SHEET_NAME=To-Do List
 ```
 

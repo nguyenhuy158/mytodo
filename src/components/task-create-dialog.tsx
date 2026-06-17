@@ -20,6 +20,7 @@ type TaskCreateDraft = {
   details: string;
   priority: TaskPriority;
   status: TaskStatus;
+  timeline: string;
   dateReceived: string;
   deadline: string;
   actualDate: string;
@@ -56,6 +57,7 @@ export function TaskCreateDialog({
       details: draft.details,
       priority: draft.priority,
       status: draft.status,
+      timeline: draft.timeline,
       dateReceived: draft.dateReceived,
       deadline: draft.deadline,
       actualDate: draft.actualDate,
@@ -173,6 +175,13 @@ export function TaskCreateDialog({
                   ))}
                 </select>
               </label>
+              <FormNumberInput
+                disabled={isSaving}
+                label="Timeline (ngày)"
+                placeholder="VD: 3"
+                value={draft.timeline}
+                onChange={(value) => updateDraft("timeline", value)}
+              />
               <FormDateInput
                 disabled={isSaving}
                 label="Date Received"
@@ -273,6 +282,37 @@ function FormTextInput({
   );
 }
 
+function FormNumberInput({
+  disabled,
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+      {label}
+      <input
+        type="number"
+        min="0"
+        step="1"
+        inputMode="numeric"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        placeholder={placeholder}
+        className="h-12 rounded-2xl border border-white bg-white px-4 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
+      />
+    </label>
+  );
+}
+
 function FormDateInput({
   disabled,
   label,
@@ -336,6 +376,7 @@ function getInitialDraft(): TaskCreateDraft {
     details: "",
     priority: "Medium",
     status: "Not Started",
+    timeline: "",
     dateReceived: getTodayInputDate(),
     deadline: "",
     actualDate: "",

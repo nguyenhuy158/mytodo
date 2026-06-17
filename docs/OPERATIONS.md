@@ -141,7 +141,7 @@ Likely causes:
 Checks:
 
 - set `GOOGLE_XLSX_SHEET_NAME=To-Do List`
-- set `GOOGLE_SHEET_RANGE="'To-Do List'!A1:N"` if using native Sheets
+- set `GOOGLE_SHEET_RANGE="'To-Do List'!A1:O"` if using native Sheets
 - confirm the header row still contains task and deadline columns
 
 ### UI Still Shows Old Data

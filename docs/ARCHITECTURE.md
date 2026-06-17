@@ -94,6 +94,7 @@ Header detection looks for the row containing task/deadline headers and maps:
 - `Details`
 - `PRIORITY`
 - `STATUS`
+- `Timeline` - expected duration in days
 - `Date Rec`
 - `Deadline`
 - `Actual Da`
