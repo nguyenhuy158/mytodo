@@ -229,19 +229,19 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             2026 Tasks
           </Link>
           {userEmail ? (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/70 px-4 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 disabled:cursor-wait disabled:opacity-70"
-            >
-              {isSigningOut ? (
-                <AppIcon name="loader" className="size-4 animate-spin" />
-              ) : (
-                <AppIcon name="logOut" className="size-4" />
-              )}
-              {isSigningOut ? "Đang thoát..." : "Đăng xuất"}
-            </button>
+            <SettingsMenu
+              userEmail={userEmail}
+              isOpen={isSettingsOpen}
+              isRefreshing={isRefreshing}
+              isSigningOut={isSigningOut}
+              menuRef={desktopSettingsMenuRef}
+              placement="desktop"
+              showDataActions={false}
+              onBackup={() => undefined}
+              onRefresh={() => undefined}
+              onSignOut={handleSignOut}
+              onToggle={() => setIsSettingsOpen((current) => !current)}
+            />
           ) : null}
         </div>
       </header>
@@ -379,6 +379,7 @@ function SettingsMenu({
   onSignOut,
   onToggle,
   placement,
+  showDataActions = true,
   userEmail,
 }: {
   isOpen: boolean;
@@ -390,6 +391,7 @@ function SettingsMenu({
   onSignOut: () => void;
   onToggle: () => void;
   placement: "desktop" | "mobile";
+  showDataActions?: boolean;
   userEmail: string;
 }) {
   const isMobile = placement === "mobile";
@@ -432,27 +434,34 @@ function SettingsMenu({
             </p>
           </div>
 
-          <div className="py-3">
-            <p className="px-2 text-xs font-black uppercase tracking-[0.16em] text-teal-700">
-              Dữ liệu
-            </p>
-            <div className="mt-2 grid gap-1">
-              <SettingsMenuItem
-                icon={isRefreshing ? "loader" : "refresh"}
-                isLoading={isRefreshing}
-                label={isRefreshing ? "Đang reload..." : "Reload dữ liệu"}
-                onClick={onRefresh}
-                disabled={isRefreshing}
-              />
-              <SettingsMenuItem
-                icon="databaseBackup"
-                label="Backup / Restore"
-                onClick={onBackup}
-              />
+          {showDataActions ? (
+            <div className="py-3">
+              <p className="px-2 text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                Dữ liệu
+              </p>
+              <div className="mt-2 grid gap-1">
+                <SettingsMenuItem
+                  icon={isRefreshing ? "loader" : "refresh"}
+                  isLoading={isRefreshing}
+                  label={isRefreshing ? "Đang reload..." : "Reload dữ liệu"}
+                  onClick={onRefresh}
+                  disabled={isRefreshing}
+                />
+                <SettingsMenuItem
+                  icon="databaseBackup"
+                  label="Backup / Restore"
+                  onClick={onBackup}
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
 
-          <div className="border-t border-slate-100 pt-3">
+          <div
+            className={cn(
+              "pt-3",
+              showDataActions ? "border-t border-slate-100" : "",
+            )}
+          >
             <p className="px-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
               Tài khoản
             </p>

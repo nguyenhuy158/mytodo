@@ -318,7 +318,7 @@ export function KanbanTasksPage() {
           {isLoading && !data ? (
             <LoadingBoard />
           ) : (
-            <div className="mt-6 flex gap-4 overflow-x-auto pb-3">
+            <div className="mt-6 flex max-w-full gap-4 overflow-x-auto overflow-y-visible pb-3">
               {STATUS_COLUMNS.map((column) => (
                 <KanbanColumn
                   key={column.status}
@@ -386,7 +386,7 @@ function KanbanColumn({
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={cn(
-        "min-h-[34rem] w-[19rem] shrink-0 rounded-[1.5rem] border p-3 transition lg:w-[21rem]",
+        "min-h-[34rem] w-[19rem] min-w-0 shrink-0 overflow-hidden rounded-[1.5rem] border p-3 transition lg:w-[21rem]",
         isDropTarget
           ? "border-teal-400 bg-teal-50/80 shadow-2xl shadow-teal-900/10 ring-4 ring-teal-100"
           : "border-slate-200 bg-slate-50/80",
@@ -419,7 +419,7 @@ function KanbanColumn({
         </div>
       ) : null}
 
-      <div className="grid gap-3">
+      <div className="grid min-w-0 gap-3">
         {tasks.length ? (
           tasks.map((task) => (
             <KanbanCard
@@ -500,40 +500,40 @@ function KanbanCard({
       onDragStart={(event) => onDragStart(event, task)}
       onKeyDown={handleCardKeyDown}
       className={cn(
-        "cursor-grab rounded-[1.25rem] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 transition active:cursor-grabbing",
+        "w-full min-w-0 max-w-full cursor-grab overflow-hidden rounded-[1.25rem] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 transition active:cursor-grabbing",
         "hover:-translate-y-0.5 hover:border-teal-100 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
         isDragging && "opacity-50 ring-4 ring-teal-100",
         isSaving && "cursor-wait opacity-70",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
           <PriorityPill priority={task.priority} />
           <TaskTimelinePill
             task={task}
-            className="px-2 py-1 text-[0.65rem]"
+            className="max-w-full px-2 py-1 text-[0.65rem]"
           />
           {task.system ? (
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600">
+            <span className="max-w-full truncate rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600">
               {task.system}
             </span>
           ) : null}
           {task.tags ? (
-            <span className="rounded-full bg-teal-50 px-2 py-1 text-[0.65rem] font-black text-teal-800">
+            <span className="max-w-full truncate rounded-full bg-teal-50 px-2 py-1 text-[0.65rem] font-black text-teal-800">
               {task.tags}
             </span>
           ) : null}
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[0.65rem] font-black text-slate-400">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[0.65rem] font-black text-slate-400">
           <AppIcon name="grip" className="size-3.5" />
           Kéo
         </span>
       </div>
-      <h4 className="mt-3 text-base font-black leading-snug tracking-[-0.03em] text-slate-950">
+      <h4 className="mt-3 min-w-0 overflow-hidden break-words text-base font-black leading-snug tracking-[-0.03em] text-slate-950">
         {task.task}
       </h4>
       {task.details ? (
-        <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
+        <p className="mt-2 line-clamp-3 min-w-0 overflow-hidden break-words text-sm leading-6 text-slate-600">
           {task.details}
         </p>
       ) : null}
@@ -545,7 +545,7 @@ function KanbanCard({
       {task.daysLeft !== null && task.status !== "Done" ? (
         <p
           className={cn(
-            "mt-3 rounded-2xl px-3 py-2 text-xs font-black",
+            "mt-3 max-w-full rounded-2xl px-3 py-2 text-xs font-black break-words",
             task.daysLeft < 0
               ? "bg-rose-100 text-rose-700"
               : "bg-emerald-100 text-emerald-700",
@@ -557,11 +557,11 @@ function KanbanCard({
         </p>
       ) : null}
       {task.note ? (
-        <p className="mt-3 line-clamp-3 rounded-2xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900/80">
+        <p className="mt-3 line-clamp-3 min-w-0 overflow-hidden break-words rounded-2xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900/80">
           {task.note}
         </p>
       ) : null}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex min-w-0 flex-wrap gap-2">
         {STATUS_COLUMNS.filter((column) => column.status !== task.status).map(
           (column) => (
             <button
@@ -572,7 +572,7 @@ function KanbanCard({
                 void onStatusUpdate(task, column.status);
               }}
               disabled={isSaving}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 transition hover:border-teal-200 hover:text-teal-800 disabled:cursor-wait disabled:opacity-50"
+              className="max-w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600 transition hover:border-teal-200 hover:text-teal-800 disabled:cursor-wait disabled:opacity-50"
             >
               {isSaving ? "Đang lưu..." : column.title}
             </button>
