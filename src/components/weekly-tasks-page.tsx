@@ -578,6 +578,8 @@ function WeeklyTaskCard({
   task: SheetTask;
   onClick: () => void;
 }) {
+  const isDone = task.status === "Done";
+
   return (
     <button
       type="button"
@@ -585,7 +587,9 @@ function WeeklyTaskCard({
       aria-label={`Xem chi tiết task: ${task.task}`}
       className={cn(
         "w-full rounded-2xl border bg-white p-3 text-left shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
-        task.status === "Done" ? "opacity-60" : "opacity-100",
+        isDone
+          ? "border-slate-200 bg-slate-100/80 text-slate-500 opacity-50 grayscale shadow-none hover:translate-y-0 hover:border-slate-200 hover:shadow-none"
+          : "opacity-100",
       )}
     >
       <div className="flex flex-wrap items-center gap-1.5">
@@ -593,18 +597,31 @@ function WeeklyTaskCard({
         <PriorityPill priority={task.priority} />
         <TaskTimelinePill
           task={task}
-          className="px-2 py-1 text-[0.65rem]"
+          className={cn(
+            "px-2 py-1 text-[0.65rem]",
+            isDone && "bg-slate-200 text-slate-500",
+          )}
         />
         {task.system ? (
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600">
+          <span
+            className={cn(
+              "rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600",
+              isDone && "bg-slate-200 text-slate-500",
+            )}
+          >
             {task.system}
           </span>
         ) : null}
       </div>
-      <h4 className="mt-2 text-sm font-black leading-snug text-slate-950">
+      <h4
+        className={cn(
+          "mt-2 text-sm font-black leading-snug text-slate-950",
+          isDone && "text-slate-500 line-through decoration-slate-400/80",
+        )}
+      >
         {task.task}
       </h4>
-      <p className="mt-2 text-xs font-bold text-slate-500">
+      <p className={cn("mt-2 text-xs font-bold text-slate-500", isDone && "text-slate-400")}>
         Rec: {task.dateReceived || "No start"} · Due:{" "}
         {task.deadline || "No deadline"}
       </p>
@@ -623,11 +640,16 @@ function WeeklyTaskCard({
         </p>
       ) : null}
       {task.note ? (
-        <p className="mt-2 line-clamp-3 rounded-xl bg-slate-50 p-2 text-xs leading-5 text-slate-600">
+        <p
+          className={cn(
+            "mt-2 line-clamp-3 rounded-xl bg-slate-50 p-2 text-xs leading-5 text-slate-600",
+            isDone && "bg-slate-200/70 text-slate-400",
+          )}
+        >
           {task.note}
         </p>
       ) : null}
-      <p className="mt-3 text-xs font-black text-teal-700">
+      <p className={cn("mt-3 text-xs font-black text-teal-700", isDone && "text-slate-400")}>
         Click để xem chi tiết
       </p>
     </button>
@@ -638,7 +660,7 @@ function StatusPill({ status }: { status: TaskStatus }) {
   const colors = {
     "In Progress": "bg-teal-100 text-teal-800",
     "Not Started": "bg-amber-100 text-amber-800",
-    Done: "bg-emerald-100 text-emerald-800",
+    Done: "bg-slate-200 text-slate-500",
     Blocked: "bg-rose-100 text-rose-800",
     Unknown: "bg-slate-100 text-slate-600",
   } satisfies Record<TaskStatus, string>;

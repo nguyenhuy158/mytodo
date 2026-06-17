@@ -461,6 +461,7 @@ function KanbanCard({
   onStatusUpdate: (task: SheetTask, status: TaskStatus) => Promise<void>;
 }) {
   const isDragging = draggingRowNumber === task.rowNumber;
+  const isDone = task.status === "Done";
 
   const handleOpenDetail = () => {
     if (!isDragging && !isSaving) {
@@ -502,6 +503,8 @@ function KanbanCard({
       className={cn(
         "w-full min-w-0 max-w-full cursor-grab overflow-hidden rounded-[1.25rem] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 transition active:cursor-grabbing",
         "hover:-translate-y-0.5 hover:border-teal-100 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
+        isDone &&
+          "border-slate-200 bg-slate-100/80 text-slate-500 opacity-60 grayscale shadow-none hover:translate-y-0 hover:border-slate-200 hover:shadow-none",
         isDragging && "opacity-50 ring-4 ring-teal-100",
         isSaving && "cursor-wait opacity-70",
       )}
@@ -511,15 +514,28 @@ function KanbanCard({
           <PriorityPill priority={task.priority} />
           <TaskTimelinePill
             task={task}
-            className="max-w-full px-2 py-1 text-[0.65rem]"
+            className={cn(
+              "max-w-full px-2 py-1 text-[0.65rem]",
+              isDone && "bg-slate-200 text-slate-500",
+            )}
           />
           {task.system ? (
-            <span className="max-w-full truncate rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600">
+            <span
+              className={cn(
+                "max-w-full truncate rounded-full bg-slate-100 px-2 py-1 text-[0.65rem] font-black text-slate-600",
+                isDone && "bg-slate-200 text-slate-500",
+              )}
+            >
               {task.system}
             </span>
           ) : null}
           {task.tags ? (
-            <span className="max-w-full truncate rounded-full bg-teal-50 px-2 py-1 text-[0.65rem] font-black text-teal-800">
+            <span
+              className={cn(
+                "max-w-full truncate rounded-full bg-teal-50 px-2 py-1 text-[0.65rem] font-black text-teal-800",
+                isDone && "bg-slate-200 text-slate-500",
+              )}
+            >
               {task.tags}
             </span>
           ) : null}
@@ -529,15 +545,30 @@ function KanbanCard({
           Kéo
         </span>
       </div>
-      <h4 className="mt-3 min-w-0 overflow-hidden break-words text-base font-black leading-snug tracking-[-0.03em] text-slate-950">
+      <h4
+        className={cn(
+          "mt-3 min-w-0 overflow-hidden break-words text-base font-black leading-snug tracking-[-0.03em] text-slate-950",
+          isDone && "text-slate-500 line-through decoration-slate-400/80",
+        )}
+      >
         {task.task}
       </h4>
       {task.details ? (
-        <p className="mt-2 line-clamp-3 min-w-0 overflow-hidden break-words text-sm leading-6 text-slate-600">
+        <p
+          className={cn(
+            "mt-2 line-clamp-3 min-w-0 overflow-hidden break-words text-sm leading-6 text-slate-600",
+            isDone && "text-slate-400",
+          )}
+        >
           {task.details}
         </p>
       ) : null}
-      <div className="mt-3 grid gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-500">
+      <div
+        className={cn(
+          "mt-3 grid gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold text-slate-500",
+          isDone && "bg-slate-200/70 text-slate-400",
+        )}
+      >
         <span>Row {task.rowNumber}</span>
         <span>Rec: {task.dateReceived || "No start"}</span>
         <span>Due: {task.deadline || "No deadline"}</span>
@@ -557,7 +588,12 @@ function KanbanCard({
         </p>
       ) : null}
       {task.note ? (
-        <p className="mt-3 line-clamp-3 min-w-0 overflow-hidden break-words rounded-2xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900/80">
+        <p
+          className={cn(
+            "mt-3 line-clamp-3 min-w-0 overflow-hidden break-words rounded-2xl bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900/80",
+            isDone && "bg-slate-200/70 text-slate-400",
+          )}
+        >
           {task.note}
         </p>
       ) : null}
