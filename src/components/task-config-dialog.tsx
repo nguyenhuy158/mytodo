@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type InputHTMLAttributes,
+} from "react";
 import { toast } from "sonner";
 import type {
   TaskConfigCategory,
@@ -423,7 +428,7 @@ function ConfigInput({
   value,
   onChange,
 }: {
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -483,7 +488,26 @@ async function mutateConfig(method: "POST" | "PATCH" | "DELETE", body: unknown) 
 
 async function readConfigResponse(response: Response, fallbackMessage: string) {
   const text = await response.text();
-  const payload = text ? (JSON.parse(text) as unknown) : {};
+  let payload: unknown = {};
+
+  if (text.trim()) {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      throw Object.assign(
+        new Error(
+          `${fallbackMessage} Server trả response không phải JSON (${response.status} ${response.statusText}).`,
+        ),
+        {
+          payload: {
+            error: {
+              message: text.slice(0, 240),
+            },
+          },
+        },
+      );
+    }
+  }
 
   if (!response.ok) {
     throwConfigError(payload, fallbackMessage);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import type { TaskAiChatPayload } from "@/lib/task-ai-types";
 import { AppIcon } from "@/components/app-icon";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ export function AiTaskChat() {
   ]);
   const [isSending, setIsSending] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedQuestion = question.trim();
@@ -232,7 +232,26 @@ async function askTaskAi(question: string) {
     body: JSON.stringify({ question }),
   });
   const text = await response.text();
-  const payload = text ? (JSON.parse(text) as unknown) : {};
+  let payload: unknown = {};
+
+  if (text.trim()) {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      throw Object.assign(
+        new Error(
+          `Không hỏi được AI. Server trả response không phải JSON (${response.status} ${response.statusText}).`,
+        ),
+        {
+          payload: {
+            error: {
+              message: text.slice(0, 240),
+            },
+          },
+        },
+      );
+    }
+  }
 
   if (!response.ok) {
     const message =

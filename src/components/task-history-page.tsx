@@ -373,9 +373,11 @@ function formatTarget(entry: TaskHistoryEntry) {
   }
 
   if (entry.target.type === "config") {
-    return entry.target.configCategory
-      ? `${entry.target.configCategory}: ${entry.target.configValue ?? "config"}`
-      : "Config";
+    if (entry.target.configCategory) {
+      return `${entry.target.configCategory}: ${entry.target.configValue ?? "config"}`;
+    }
+
+    return entry.target.taskTitle ? `Config ${entry.target.taskTitle}` : "Config";
   }
 
   return "Sheet";
