@@ -44,6 +44,7 @@ export function TaskHistoryPage() {
       refreshInterval: 30_000,
       revalidateOnFocus: true,
       keepPreviousData: true,
+      shouldRetryOnError: false,
     },
   );
   const entries = useMemo(() => data?.entries ?? [], [data?.entries]);
@@ -119,7 +120,7 @@ export function TaskHistoryPage() {
             </div>
           ) : null}
 
-          {isLoading && !data ? (
+          {isLoading && !data && !historyError ? (
             <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/60 p-8 text-center">
               <AppIcon
                 name="loader"
@@ -131,7 +132,7 @@ export function TaskHistoryPage() {
             </div>
           ) : null}
 
-          {!isLoading && !filteredEntries.length ? (
+          {!isLoading && !historyError && !filteredEntries.length ? (
             <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/60 p-8 text-center">
               <p className="text-lg font-black text-slate-800">
                 Chưa có history phù hợp
