@@ -17,6 +17,7 @@ import {
   type TaskCacheStatus,
   type TaskCreateInput,
   type TaskUpdateInput,
+  type SheetRuntimeInfoPayload,
   type TasksPayload,
 } from "@/lib/tasks";
 
@@ -328,6 +329,24 @@ export async function restoreSheetBackupSnapshot(
   );
 }
 
+export function getSheetRuntimeInfo(): SheetRuntimeInfoPayload {
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID ?? DEFAULT_SPREADSHEET_ID;
+  const sheetGid = process.env.GOOGLE_SHEET_GID ?? DEFAULT_SHEET_GID;
+
+  return {
+    sheet: {
+      googleSheetUrl: getGoogleSheetUrl(spreadsheetId, sheetGid),
+      range: process.env.GOOGLE_SHEET_RANGE ?? "",
+      sheetGid,
+      spreadsheetId,
+      xlsxSheetName: process.env.GOOGLE_XLSX_SHEET_NAME ?? "",
+    },
+    meta: {
+      updatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function getRuntimeConfig(): SheetRuntimeConfig {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID ?? DEFAULT_SPREADSHEET_ID;
   const pollingMs = toPositiveNumber(
@@ -350,6 +369,12 @@ function getRuntimeConfig(): SheetRuntimeConfig {
       process.env.GOOGLE_XLSX_SHEET_NAME ?? "",
     ].join(":"),
   };
+}
+
+function getGoogleSheetUrl(spreadsheetId: string, sheetGid: string) {
+  return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(
+    spreadsheetId,
+  )}/edit?gid=${encodeURIComponent(sheetGid)}#gid=${encodeURIComponent(sheetGid)}`;
 }
 
 async function refreshSheetTaskCache(

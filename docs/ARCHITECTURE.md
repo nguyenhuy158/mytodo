@@ -26,6 +26,7 @@
 | `/week` | Current week deadline board | `src/app/week/page.tsx` |
 | `/login` | Google login, optional magic-link login, and access-denied state | `src/app/login/page.tsx` |
 | `/api/tasks` | Server API for tasks | `src/app/api/tasks/route.ts` |
+| `/api/sheet-info` | Auth-protected Google Sheet target metadata for Settings | `src/app/api/sheet-info/route.ts` |
 | `/api/task-backups` | Server API for backup and restore | `src/app/api/task-backups/route.ts` |
 | `/api/ai/week-summary` | Server API for Gemini weekly summary | `src/app/api/ai/week-summary/route.ts` |
 | `/api/auth/[...nextauth]` | Auth.js Google OAuth handlers | `src/app/api/auth/[...nextauth]/route.ts` |

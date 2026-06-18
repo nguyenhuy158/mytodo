@@ -96,12 +96,8 @@ export async function generateGeminiJson<T>({
       ],
       generationConfig: {
         maxOutputTokens,
-        responseFormat: {
-          text: {
-            mimeType: "application/json",
-            schema: responseSchema,
-          },
-        },
+        responseJsonSchema: responseSchema,
+        responseMimeType: "application/json",
         temperature,
       },
       systemInstruction: systemInstruction

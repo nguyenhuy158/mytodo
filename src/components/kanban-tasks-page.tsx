@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
 const KANBAN_SELECTION_STORAGE_KEY = "mytodo:selected-task:/kanban";
+const DEFAULT_VISIBLE_TASKS_PER_COLUMN = 8;
+const DEFAULT_VISIBLE_DONE_TASKS = 6;
+const LOAD_MORE_TASK_COUNT = 8;
 
 const STATUS_COLUMNS: Array<{
   status: TaskStatus;
@@ -94,6 +97,8 @@ export function KanbanTasksPage() {
   const [dropTargetStatus, setDropTargetStatus] = useState<TaskStatus | null>(
     null,
   );
+  const [visibleTaskCounts, setVisibleTaskCounts] =
+    useState<Record<TaskStatus, number>>(buildInitialVisibleTaskCounts);
   const deferredQuery = useDeferredValue(query);
   const { data, error, isLoading, mutate } = useSWR<TasksPayload>(
     TASKS_API_URL,
@@ -134,7 +139,15 @@ export function KanbanTasksPage() {
   const handleSearchChange = (nextQuery: string) => {
     startTransition(() => {
       setQuery(nextQuery);
+      setVisibleTaskCounts(buildInitialVisibleTaskCounts());
     });
+  };
+
+  const handleLoadMore = (status: TaskStatus) => {
+    setVisibleTaskCounts((currentCounts) => ({
+      ...currentCounts,
+      [status]: currentCounts[status] + LOAD_MORE_TASK_COUNT,
+    }));
   };
 
   const handleTaskUpdate = async (
@@ -349,11 +362,13 @@ export function KanbanTasksPage() {
                   isDropTarget={dropTargetStatus === column.status}
                   savingRowNumber={savingRowNumber}
                   tasks={columnTasks[column.status]}
+                  visibleTaskCount={visibleTaskCounts[column.status]}
                   onDragEnd={handleDragEnd}
                   onDragLeave={(event) => handleDragLeave(event, column.status)}
                   onDragOver={(event) => handleDragOver(event, column.status)}
                   onDragStart={handleDragStart}
                   onDrop={(event) => handleDrop(event, column.status)}
+                  onLoadMore={() => handleLoadMore(column.status)}
                   onTaskSelect={setSelectedTaskId}
                   onStatusUpdate={handleStatusUpdate}
                 />
@@ -381,11 +396,13 @@ function KanbanColumn({
   isDropTarget,
   savingRowNumber,
   tasks,
+  visibleTaskCount,
   onDragEnd,
   onDragLeave,
   onDragOver,
   onDragStart,
   onDrop,
+  onLoadMore,
   onTaskSelect,
   onStatusUpdate,
 }: {
@@ -394,14 +411,20 @@ function KanbanColumn({
   isDropTarget: boolean;
   savingRowNumber: number | null;
   tasks: SheetTask[];
+  visibleTaskCount: number;
   onDragEnd: () => void;
   onDragLeave: (event: React.DragEvent<HTMLElement>) => void;
   onDragOver: (event: React.DragEvent<HTMLElement>) => void;
   onDragStart: (event: React.DragEvent<HTMLElement>, task: SheetTask) => void;
   onDrop: (event: React.DragEvent<HTMLElement>) => void;
+  onLoadMore: () => void;
   onTaskSelect: (taskId: string) => void;
   onStatusUpdate: (task: SheetTask, status: TaskStatus) => Promise<void>;
 }) {
+  const visibleTasks = tasks.slice(0, visibleTaskCount);
+  const hiddenTaskCount = Math.max(tasks.length - visibleTasks.length, 0);
+  const nextLoadCount = Math.min(hiddenTaskCount, LOAD_MORE_TASK_COUNT);
+
   return (
     <section
       data-drop-active={isDropTarget ? "true" : "false"}
@@ -435,6 +458,11 @@ function KanbanColumn({
             {tasks.length}
           </span>
         </div>
+        {tasks.length ? (
+          <p className="mt-3 text-xs font-black text-slate-400">
+            Đang hiện {visibleTasks.length}/{tasks.length}
+          </p>
+        ) : null}
       </div>
 
       {isDropTarget ? (
@@ -445,7 +473,7 @@ function KanbanColumn({
 
       <div className="grid min-w-0 gap-3">
         {tasks.length ? (
-          tasks.map((task) => (
+          visibleTasks.map((task) => (
             <KanbanCard
               key={task.id}
               task={task}
@@ -463,6 +491,17 @@ function KanbanColumn({
           </div>
         )}
       </div>
+
+      {hiddenTaskCount > 0 ? (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-[1.1rem] border border-dashed border-teal-200 bg-white/80 px-4 py-3 text-sm font-black text-teal-800 transition hover:border-teal-300 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100"
+        >
+          <AppIcon name="chevronDown" className="size-4" />
+          Xem thêm {nextLoadCount} task
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -742,6 +781,17 @@ function buildColumnTasks(tasks: SheetTask[]) {
       tasks.filter((task) => task.status === column.status),
     ]),
   ) as Record<TaskStatus, SheetTask[]>;
+}
+
+function buildInitialVisibleTaskCounts() {
+  return Object.fromEntries(
+    STATUS_COLUMNS.map((column) => [
+      column.status,
+      column.status === "Done"
+        ? DEFAULT_VISIBLE_DONE_TASKS
+        : DEFAULT_VISIBLE_TASKS_PER_COLUMN,
+    ]),
+  ) as Record<TaskStatus, number>;
 }
 
 function buildKanbanStats(tasks: SheetTask[]) {

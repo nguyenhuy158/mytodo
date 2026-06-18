@@ -83,6 +83,19 @@ export type TasksPayload = {
   };
 };
 
+export type SheetRuntimeInfoPayload = {
+  sheet: {
+    googleSheetUrl: string;
+    range: string;
+    sheetGid: string;
+    spreadsheetId: string;
+    xlsxSheetName: string;
+  };
+  meta: {
+    updatedAt: string;
+  };
+};
+
 export type TaskBackupSnapshot = {
   version: 1;
   createdAt: string;

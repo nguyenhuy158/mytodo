@@ -6,7 +6,11 @@ import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import { mutate } from "swr";
-import type { TaskCreateInput, TasksPayload } from "@/lib/tasks";
+import type {
+  SheetRuntimeInfoPayload,
+  TaskCreateInput,
+  TasksPayload,
+} from "@/lib/tasks";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { TaskBackupDialog } from "@/components/task-backup-dialog";
 import { TaskConfigDialog } from "@/components/task-config-dialog";
@@ -14,8 +18,7 @@ import { TaskCreateDialog } from "@/components/task-create-dialog";
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
-const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1Sv86oc9zXbvwSsD956uT4opSU8JqP04s/edit?gid=689856921#gid=689856921";
+const SHEET_INFO_API_URL = "/api/sheet-info";
 const LAST_NAV_STORAGE_KEY = "mytodo:last-nav";
 
 type SiteHeaderProps = {
@@ -80,6 +83,20 @@ const fetchTasks = async (url: string): Promise<TasksPayload> => {
   return payload;
 };
 
+const fetchSheetInfo = async (): Promise<SheetRuntimeInfoPayload> => {
+  const response = await fetch(SHEET_INFO_API_URL, { cache: "no-store" });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    const message =
+      payload.error?.message ?? "Không đọc được cấu hình Google Sheet.";
+
+    throw Object.assign(new Error(message), { payload });
+  }
+
+  return payload as SheetRuntimeInfoPayload;
+};
+
 export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const pathname = usePathname();
   const navLinkRefs = useRef(new Map<string, HTMLAnchorElement>());
@@ -92,6 +109,11 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isSheetInfoLoading, setIsSheetInfoLoading] = useState(false);
+  const [sheetInfo, setSheetInfo] = useState<SheetRuntimeInfoPayload | null>(
+    null,
+  );
+  const [sheetInfoError, setSheetInfoError] = useState<string | null>(null);
   const activeNavHref = getActiveNavHref(pathname);
   const isAuthPage = pathname === "/login";
 
@@ -143,6 +165,39 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isSettingsOpen]);
+
+  const loadSheetInfo = () => {
+    if (sheetInfo || isSheetInfoLoading) {
+      return;
+    }
+
+    const loadInfo = async () => {
+      setIsSheetInfoLoading(true);
+      setSheetInfoError(null);
+
+      try {
+        setSheetInfo(await fetchSheetInfo());
+      } catch (infoError) {
+        setSheetInfoError(
+          infoError instanceof Error
+            ? infoError.message
+            : "Không đọc được cấu hình Google Sheet.",
+        );
+      } finally {
+        setIsSheetInfoLoading(false);
+      }
+    };
+
+    void loadInfo();
+  };
+
+  const handleSettingsToggle = () => {
+    if (!isSettingsOpen && !isAuthPage) {
+      loadSheetInfo();
+    }
+
+    setIsSettingsOpen((current) => !current);
+  };
 
   const handleRefresh = () => {
     const refreshTasks = async () => {
@@ -239,15 +294,18 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
               userEmail={userEmail}
               isOpen={isSettingsOpen}
               isRefreshing={isRefreshing}
+              isSheetInfoLoading={isSheetInfoLoading}
               isSigningOut={isSigningOut}
               menuRef={desktopSettingsMenuRef}
               placement="desktop"
+              sheetInfo={sheetInfo}
+              sheetInfoError={sheetInfoError}
               showDataActions={false}
               onBackup={() => undefined}
               onConfig={() => undefined}
               onRefresh={() => undefined}
               onSignOut={handleSignOut}
-              onToggle={() => setIsSettingsOpen((current) => !current)}
+              onToggle={handleSettingsToggle}
             />
           ) : null}
         </div>
@@ -305,9 +363,12 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
                 userEmail={userEmail}
                 isOpen={isSettingsOpen}
                 isRefreshing={isRefreshing}
+                isSheetInfoLoading={isSheetInfoLoading}
                 isSigningOut={isSigningOut}
                 menuRef={desktopSettingsMenuRef}
                 placement="desktop"
+                sheetInfo={sheetInfo}
+                sheetInfoError={sheetInfoError}
                 onBackup={() => {
                   setIsSettingsOpen(false);
                   setIsBackupOpen(true);
@@ -321,7 +382,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
                   handleRefresh();
                 }}
                 onSignOut={handleSignOut}
-                onToggle={() => setIsSettingsOpen((current) => !current)}
+                onToggle={handleSettingsToggle}
               />
             ) : null}
             <button
@@ -354,9 +415,12 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             userEmail={userEmail}
             isOpen={isSettingsOpen}
             isRefreshing={isRefreshing}
+            isSheetInfoLoading={isSheetInfoLoading}
             isSigningOut={isSigningOut}
             menuRef={mobileSettingsMenuRef}
             placement="mobile"
+            sheetInfo={sheetInfo}
+            sheetInfoError={sheetInfoError}
             onBackup={() => {
               setIsSettingsOpen(false);
               setIsBackupOpen(true);
@@ -370,7 +434,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
               handleRefresh();
             }}
             onSignOut={handleSignOut}
-            onToggle={() => setIsSettingsOpen((current) => !current)}
+            onToggle={handleSettingsToggle}
           />
         ) : null}
         <button
@@ -390,6 +454,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
 function SettingsMenu({
   isOpen,
   isRefreshing,
+  isSheetInfoLoading,
   isSigningOut,
   menuRef,
   onBackup,
@@ -398,11 +463,14 @@ function SettingsMenu({
   onSignOut,
   onToggle,
   placement,
+  sheetInfo,
+  sheetInfoError,
   showDataActions = true,
   userEmail,
 }: {
   isOpen: boolean;
   isRefreshing: boolean;
+  isSheetInfoLoading: boolean;
   isSigningOut: boolean;
   menuRef: RefObject<HTMLDivElement | null>;
   onBackup: () => void;
@@ -411,6 +479,8 @@ function SettingsMenu({
   onSignOut: () => void;
   onToggle: () => void;
   placement: "desktop" | "mobile";
+  sheetInfo: SheetRuntimeInfoPayload | null;
+  sheetInfoError: string | null;
   showDataActions?: boolean;
   userEmail: string;
 }) {
@@ -459,6 +529,11 @@ function SettingsMenu({
               <p className="px-2 text-xs font-black uppercase tracking-[0.16em] text-teal-700">
                 Dữ liệu
               </p>
+              <SheetSourceInfo
+                error={sheetInfoError}
+                info={sheetInfo}
+                isLoading={isSheetInfoLoading}
+              />
               <div className="mt-2 grid gap-1">
                 <SettingsMenuItem
                   icon={isRefreshing ? "loader" : "refresh"}
@@ -482,11 +557,13 @@ function SettingsMenu({
                   icon="clock"
                   label="History hoạt động"
                 />
-                <SettingsMenuExternalLink
-                  href={SHEET_URL}
-                  icon="externalLink"
-                  label="Mở Google Sheet"
-                />
+                {sheetInfo ? (
+                  <SettingsMenuExternalLink
+                    href={sheetInfo.sheet.googleSheetUrl}
+                    icon="externalLink"
+                    label="Mở Google Sheet"
+                  />
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -513,6 +590,72 @@ function SettingsMenu({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SheetSourceInfo({
+  error,
+  info,
+  isLoading,
+}: {
+  error: string | null;
+  info: SheetRuntimeInfoPayload | null;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
+        <p className="inline-flex items-center gap-2 text-xs font-black text-slate-500">
+          <AppIcon name="loader" className="size-3.5 animate-spin" />
+          Đang đọc nguồn dữ liệu...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+        <p className="text-xs font-black leading-5 text-amber-900">{error}</p>
+      </div>
+    );
+  }
+
+  if (!info) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-teal-100 bg-teal-50/70 p-3">
+      <p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-teal-700">
+        Nguồn CRUD hiện tại
+      </p>
+      <div className="mt-2 grid gap-2">
+        <SheetSourceRow label="GOOGLE_SHEET_ID" value={info.sheet.spreadsheetId} />
+        <SheetSourceRow label="GOOGLE_SHEET_GID" value={info.sheet.sheetGid} />
+        <SheetSourceRow
+          label="Range"
+          value={info.sheet.range || "Auto theo tab từ GID"}
+        />
+        <SheetSourceRow
+          label="XLSX tab"
+          value={info.sheet.xlsxSheetName || "Default sheet"}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SheetSourceRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-0.5">
+      <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-400">
+        {label}
+      </span>
+      <span className="break-all font-mono text-xs font-black leading-5 text-slate-800">
+        {value}
+      </span>
     </div>
   );
 }
