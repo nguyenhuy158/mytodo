@@ -79,7 +79,9 @@ Writable fields are:
 
 From the shared header, click `Backup`.
 
-- `Backup now` creates a local JSON snapshot under `.task-backups`.
+- `Backup now` creates a local JSON snapshot under `TASK_BACKUP_DIR`, or
+  `.task-backups` when that env var is not set.
+- Dokploy stores backups in the named volume mounted at `/app/task-backups`.
 - `Restore` requires typing `RESTORE`; the server creates a safety backup first, then writes the selected snapshot back to the current Sheet.
 - Backup files contain row values only, not Google credentials.
 

@@ -29,6 +29,9 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV TASK_BACKUP_CRON_ENABLED=true
+ENV TASK_BACKUP_CRON_INTERVAL_HOURS=12
+ENV TASK_BACKUP_DIR=/app/task-backups
 WORKDIR /app
 
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
@@ -36,6 +39,8 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 COPY --link --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+RUN mkdir -p /app/task-backups && chown -R nextjs:nodejs /app/task-backups
 
 USER nextjs
 

@@ -33,7 +33,7 @@ export async function saveTaskBackup(
     note: note?.trim() || undefined,
   };
   const filePath = path.join(
-    backupDir,
+    /*turbopackIgnore: true*/ backupDir,
     `${toFileTimestamp(record.createdAt)}-${id}${BACKUP_FILE_EXTENSION}`,
   );
 
@@ -67,7 +67,15 @@ export async function readTaskBackup(id: string): Promise<TaskBackupRecord> {
 }
 
 function getBackupDir() {
-  return path.join(process.cwd(), DEFAULT_BACKUP_DIR);
+  const configuredDir = process.env.TASK_BACKUP_DIR?.trim();
+
+  if (!configuredDir) {
+    return path.join(/*turbopackIgnore: true*/ process.cwd(), DEFAULT_BACKUP_DIR);
+  }
+
+  return path.isAbsolute(configuredDir)
+    ? configuredDir
+    : path.join(/*turbopackIgnore: true*/ process.cwd(), configuredDir);
 }
 
 async function readTaskBackupRecords() {
@@ -79,7 +87,9 @@ async function readTaskBackupRecords() {
   const records = await Promise.all(
     filenames
       .filter((filename) => filename.endsWith(BACKUP_FILE_EXTENSION))
-      .map((filename) => readBackupFile(path.join(backupDir, filename))),
+      .map((filename) =>
+        readBackupFile(path.join(/*turbopackIgnore: true*/ backupDir, filename)),
+      ),
   );
 
   return records.filter((record): record is TaskBackupRecord => Boolean(record));

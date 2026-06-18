@@ -15,6 +15,11 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://task.huycode.click}
       NODE_ENV: production
       PORT: 3000
+      TASK_BACKUP_CRON_ENABLED: ${TASK_BACKUP_CRON_ENABLED:-true}
+      TASK_BACKUP_CRON_INTERVAL_HOURS: ${TASK_BACKUP_CRON_INTERVAL_HOURS:-12}
+      TASK_BACKUP_DIR: /app/task-backups
+    volumes:
+      - mytodo-task-backups:/app/task-backups
     expose:
       - "3000"
     networks:
@@ -35,3 +40,6 @@ services:
 networks:
   dokploy-network:
     external: true
+
+volumes:
+  mytodo-task-backups:

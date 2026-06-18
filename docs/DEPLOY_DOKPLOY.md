@@ -34,6 +34,7 @@ AUTH_DEBUG=false
 AUTH_URL=https://task.huycode.click
 NEXTAUTH_URL=https://task.huycode.click
 APP_BASE_URL=https://task.huycode.click
+TASK_BACKUP_DIR=/app/task-backups
 # RESEND_API_KEY=re_xxxxxxxxx
 # MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
 RESEND_API_KEY=
@@ -63,6 +64,10 @@ domain. Do not set them to `0.0.0.0` or the internal container port; Auth.js wil
 use these values for OAuth redirects. Magic-link login does not need a Google
 OAuth callback, but it only appears when `RESEND_API_KEY` and `MAGIC_LINK_FROM`
 are both configured.
+
+`docker-compose.dokploy.yml` mounts a named volume at `/app/task-backups`.
+Keep `TASK_BACKUP_DIR=/app/task-backups` so `Backup now` can write snapshots
+as the non-root `nextjs` user and backups survive container replacement.
 
 ## Credential Notes
 

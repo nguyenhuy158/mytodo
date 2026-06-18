@@ -34,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/tasks", icon: "listTodo", label: "Task board" },
   { href: "/kanban", icon: "kanban", label: "Kanban" },
   { href: "/week", icon: "calendarDays", label: "Task tuần này" },
+  { href: "/month", icon: "calendarClock", label: "Tháng" },
   { href: "/history", icon: "clock", label: "History" },
 ];
 
@@ -266,7 +267,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
               2026 Tasks
             </Link>
           </div>
-          <nav className="grid grid-cols-6 gap-1.5 sm:flex sm:gap-2 lg:justify-center">
+          <nav className="grid grid-cols-7 gap-1.5 sm:flex sm:gap-2 lg:justify-center">
             {NAV_ITEMS.map((item) => {
               const isActive =
                 activeNavHref === item.href;

@@ -355,7 +355,7 @@ function MetricGrid({
 
 function OverviewShortcuts() {
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
       <OverviewShortcutCard
         description="Xem status, priority, workload và deadline health."
         href="/charts"
@@ -375,6 +375,11 @@ function OverviewShortcuts() {
         description="Task có deadline từ thứ 2 tới chủ nhật tuần này."
         href="/week"
         label="Task tuần này"
+      />
+      <OverviewShortcutCard
+        description="Tổng hợp task theo deadline trong từng tháng."
+        href="/month"
+        label="Tổng quan tháng"
       />
       <OverviewShortcutCard
         description="Track ai tạo, update, backup và restore dữ liệu."
