@@ -81,37 +81,24 @@ export async function generateGeminiJson<T>({
   temperature = 0.2,
 }: GeminiJsonInput): Promise<GeminiJsonResult<T>> {
   const config = getGeminiConfig(model);
-  const response = await fetch(getGenerateContentUrl(config.model), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": config.apiKey,
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        maxOutputTokens,
-        responseFormat: {
-          text: {
-            mimeType: "application/json",
-            schema: responseSchema,
-          },
-        },
-        temperature,
-      },
-      systemInstruction: systemInstruction
-        ? {
-            parts: [{ text: systemInstruction }],
-          }
-        : undefined,
-    }),
-  });
-  const payload = await readGeminiJson(response);
+  const requestInput = {
+    maxOutputTokens,
+    prompt,
+    responseSchema,
+    systemInstruction,
+    temperature,
+  } satisfies Required<Omit<GeminiJsonInput, "model" | "systemInstruction">> &
+    Pick<GeminiJsonInput, "systemInstruction">;
+  const structuredResult = await requestGeminiJson(config, requestInput, true);
+  let response = structuredResult.response;
+  let payload = structuredResult.payload;
+
+  if (!response.ok && shouldRetryWithoutStructuredOutput(payload, response.status)) {
+    const plainResult = await requestGeminiJson(config, requestInput, false);
+
+    response = plainResult.response;
+    payload = plainResult.payload;
+  }
 
   if (!response.ok) {
     throw new GeminiRequestError(
@@ -135,6 +122,65 @@ export async function generateGeminiJson<T>({
     modelVersion: payload.modelVersion,
     responseId: payload.responseId,
     usageMetadata: payload.usageMetadata,
+  };
+}
+
+async function requestGeminiJson(
+  config: ReturnType<typeof getGeminiConfig>,
+  input: Required<Omit<GeminiJsonInput, "model" | "systemInstruction">> &
+    Pick<GeminiJsonInput, "systemInstruction">,
+  structuredOutput: boolean,
+) {
+  const response = await fetch(getGenerateContentUrl(config.model), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": config.apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: structuredOutput
+                ? input.prompt
+                : buildPlainJsonPrompt(input.prompt, input.responseSchema),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: input.maxOutputTokens,
+        ...(structuredOutput
+          ? {
+              responseFormat: {
+                text: {
+                  mimeType: "application/json",
+                  schema: input.responseSchema,
+                },
+              },
+            }
+          : {}),
+        temperature: input.temperature,
+      },
+      systemInstruction: input.systemInstruction
+        ? {
+            parts: [
+              {
+                text: structuredOutput
+                  ? input.systemInstruction
+                  : `${input.systemInstruction} Trả về duy nhất JSON hợp lệ, không markdown, không giải thích ngoài JSON.`,
+              },
+            ],
+          }
+        : undefined,
+    }),
+  });
+
+  return {
+    payload: await readGeminiJson(response),
+    response,
   };
 }
 
@@ -167,6 +213,36 @@ function getGenerateContentUrl(model: string) {
   return `${GEMINI_API_BASE_URL}/models/${encodeURIComponent(
     model,
   )}:generateContent`;
+}
+
+function shouldRetryWithoutStructuredOutput(
+  payload: GeminiGenerateContentResponse & GeminiErrorResponse,
+  status: number,
+) {
+  if (status !== 400) {
+    return false;
+  }
+
+  const message = payload.error?.message?.toLowerCase() ?? "";
+
+  return (
+    message.includes("response_format") ||
+    message.includes("responseformat") ||
+    message.includes("mime_type") ||
+    message.includes("mimetype") ||
+    message.includes("application/json")
+  );
+}
+
+function buildPlainJsonPrompt(prompt: string, responseSchema: GeminiJsonSchema) {
+  return [
+    prompt,
+    "",
+    "Bắt buộc trả về duy nhất một JSON object hợp lệ theo JSON Schema bên dưới.",
+    "Không bọc ```json, không markdown, không thêm chữ giải thích trước hoặc sau JSON.",
+    "JSON Schema:",
+    JSON.stringify(responseSchema, null, 2),
+  ].join("\n");
 }
 
 async function readGeminiJson(response: Response) {

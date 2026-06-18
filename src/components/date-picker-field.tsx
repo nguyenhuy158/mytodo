@@ -8,21 +8,28 @@ import {
   type ChevronProps,
   type ClassNames,
 } from "@daypicker/react";
-import { createPortal } from "react-dom";
 import {
-  useCallback,
-  useEffect,
+  autoUpdate,
+  flip,
+  FloatingFocusManager,
+  FloatingPortal,
+  offset,
+  shift,
+  useClick,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useRole,
+} from "@floating-ui/react";
+import {
   useId,
   useMemo,
-  useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { cn } from "@/lib/utils";
 
 const POPOVER_MARGIN = 12;
-const POPOVER_WIDTH = 320;
 
 const CALENDAR_CLASS_NAMES: Partial<ClassNames> = {
   [UI.Root]: "relative text-slate-900",
@@ -76,94 +83,33 @@ export function DatePickerField({
   const fieldId = id ?? generatedId;
   const labelId = `${fieldId}-label`;
   const popoverId = `${fieldId}-calendar`;
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const selectedDate = useMemo(() => parseInputDate(value), [value]);
   const [month, setMonth] = useState<Date>(() => selectedDate ?? new Date());
-  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({
-    left: POPOVER_MARGIN,
-    top: POPOVER_MARGIN,
-    width: POPOVER_WIDTH,
+  const {
+    context,
+    floatingStyles,
+    refs: { setFloating, setReference },
+  } = useFloating({
+    middleware: [
+      offset(8),
+      flip({ padding: POPOVER_MARGIN }),
+      shift({ padding: POPOVER_MARGIN }),
+    ],
+    onOpenChange: setIsOpen,
+    open: isOpen,
+    placement: "bottom-start",
+    strategy: "fixed",
+    whileElementsMounted: autoUpdate,
   });
-
-  const updatePopoverPosition = useCallback(() => {
-    const button = buttonRef.current;
-
-    if (!button) {
-      return;
-    }
-
-    const rect = button.getBoundingClientRect();
-    const width = Math.min(POPOVER_WIDTH, window.innerWidth - POPOVER_MARGIN * 2);
-    const popoverHeight = popoverRef.current?.offsetHeight ?? 380;
-    const preferredTop = rect.bottom + 8;
-    const hasRoomBelow =
-      preferredTop + popoverHeight <= window.innerHeight - POPOVER_MARGIN;
-    const top = hasRoomBelow
-      ? preferredTop
-      : Math.max(POPOVER_MARGIN, rect.top - popoverHeight - 8);
-    const left = Math.min(
-      Math.max(POPOVER_MARGIN, rect.left),
-      window.innerWidth - width - POPOVER_MARGIN,
-    );
-
-    setPopoverStyle({ left, top, width });
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const animationFrame = window.requestAnimationFrame(updatePopoverPosition);
-
-    window.addEventListener("resize", updatePopoverPosition);
-    window.addEventListener("scroll", updatePopoverPosition, true);
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", updatePopoverPosition);
-      window.removeEventListener("scroll", updatePopoverPosition, true);
-    };
-  }, [isOpen, updatePopoverPosition]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-
-      if (!(target instanceof Node)) {
-        return;
-      }
-
-      if (
-        buttonRef.current?.contains(target) ||
-        popoverRef.current?.contains(target)
-      ) {
-        return;
-      }
-
-      setIsOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: "dialog" });
+  const { getFloatingProps, getReferenceProps } = useInteractions([
+    click,
+    dismiss,
+    role,
+  ]);
 
   const handleSelect = (date: Date | undefined) => {
     if (!date) {
@@ -183,12 +129,10 @@ export function DatePickerField({
     setIsOpen(false);
   };
 
-  const handleToggleOpen = () => {
-    if (!isOpen) {
+  const handleReferenceClick = () => {
+    if (!context.open) {
       setMonth(selectedDate ?? new Date());
     }
-
-    setIsOpen((current) => !current);
   };
 
   return (
@@ -202,7 +146,7 @@ export function DatePickerField({
         {label}
       </span>
       <button
-        ref={buttonRef}
+        ref={setReference}
         id={fieldId}
         type="button"
         aria-controls={isOpen ? popoverId : undefined}
@@ -210,26 +154,27 @@ export function DatePickerField({
         aria-haspopup="dialog"
         aria-labelledby={`${labelId} ${fieldId}`}
         disabled={disabled}
-        onClick={handleToggleOpen}
         className={cn(
           "flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white bg-white px-4 text-left text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60",
           inputClassName,
         )}
+        {...getReferenceProps({ onClick: handleReferenceClick })}
       >
         <span className={cn(!value && "text-slate-400")}>
           {value ? formatDisplayDate(value) : placeholder}
         </span>
         <AppIcon name="calendarDays" className="size-4 text-slate-400" />
       </button>
-      {isOpen && typeof document !== "undefined"
-        ? createPortal(
+      {isOpen ? (
+        <FloatingPortal>
+          <FloatingFocusManager context={context} modal={false}>
             <div
-              ref={popoverRef}
+              ref={setFloating}
               id={popoverId}
-              role="dialog"
               aria-label={`${label} calendar`}
-              className="fixed z-[140] rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-950/20"
-              style={popoverStyle}
+              className="z-[140] w-[min(calc(100vw-1.5rem),20rem)] rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-950/20"
+              style={floatingStyles}
+              {...getFloatingProps()}
             >
               <DayPicker
                 autoFocus
@@ -262,10 +207,10 @@ export function DatePickerField({
                   Today
                 </button>
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </div>
+          </FloatingFocusManager>
+        </FloatingPortal>
+      ) : null}
     </div>
   );
 }

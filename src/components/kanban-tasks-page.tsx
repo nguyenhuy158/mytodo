@@ -1,5 +1,25 @@
 "use client";
 
+import {
+  closestCorners,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
@@ -20,6 +40,8 @@ import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
 const KANBAN_SELECTION_STORAGE_KEY = "mytodo:selected-task:/kanban";
+const KANBAN_COLUMN_DND_PREFIX = "kanban-column:";
+const KANBAN_TASK_DND_PREFIX = "kanban-task:";
 const DEFAULT_VISIBLE_TASKS_PER_COLUMN = 8;
 const DEFAULT_VISIBLE_DONE_TASKS = 6;
 const LOAD_MORE_TASK_COUNT = 8;
@@ -101,6 +123,16 @@ export function KanbanTasksPage() {
   const [visibleTaskCounts, setVisibleTaskCounts] =
     useState<Record<TaskStatus, number>>(buildInitialVisibleTaskCounts);
   const deferredQuery = useDeferredValue(query);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
   const { data, error, isLoading, mutate } = useSWR<TasksPayload>(
     TASKS_API_URL,
     fetcher,
@@ -136,6 +168,10 @@ export function KanbanTasksPage() {
     [filteredTasks],
   );
   const stats = useMemo(() => buildKanbanStats(tasks), [tasks]);
+  const activeTask = useMemo(
+    () => tasks.find((task) => task.rowNumber === draggingRowNumber) ?? null,
+    [draggingRowNumber, tasks],
+  );
 
   const handleSearchChange = (nextQuery: string) => {
     startTransition(() => {
@@ -238,58 +274,32 @@ export function KanbanTasksPage() {
     }
   };
 
-  const handleDragStart = (
-    event: React.DragEvent<HTMLElement>,
-    task: SheetTask,
-  ) => {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", String(task.rowNumber));
-    setDraggingRowNumber(task.rowNumber);
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = getDndTask(event.active.data.current);
+
+    if (task) {
+      setDraggingRowNumber(task.rowNumber);
+    }
   };
 
-  const handleDragEnd = () => {
+  const handleDragOver = (event: DragOverEvent) => {
+    const nextStatus = getDndTargetStatus(event.over?.id, tasks);
+
+    setDropTargetStatus(nextStatus);
+  };
+
+  const handleDragCancel = () => {
     setDraggingRowNumber(null);
     setDropTargetStatus(null);
   };
 
-  const handleDragOver = (
-    event: React.DragEvent<HTMLElement>,
-    nextStatus: TaskStatus,
-  ) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
+  const handleDragEnd = (event: DragEndEvent) => {
+    const task = getDndTask(event.active.data.current);
+    const nextStatus = getDndTargetStatus(event.over?.id, tasks);
 
-    if (draggingRowNumber !== null) {
-      setDropTargetStatus(nextStatus);
-    }
-  };
-
-  const handleDragLeave = (
-    event: React.DragEvent<HTMLElement>,
-    status: TaskStatus,
-  ) => {
-    const nextTarget = event.relatedTarget;
-
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-      return;
-    }
-
-    setDropTargetStatus((currentStatus) =>
-      currentStatus === status ? null : currentStatus,
-    );
-  };
-
-  const handleDrop = (
-    event: React.DragEvent<HTMLElement>,
-    nextStatus: TaskStatus,
-  ) => {
-    event.preventDefault();
     setDropTargetStatus(null);
 
-    const rowNumber = Number(event.dataTransfer.getData("text/plain"));
-    const task = tasks.find((item) => item.rowNumber === rowNumber);
-
-    if (!task) {
+    if (!task || !nextStatus) {
       setDraggingRowNumber(null);
 
       return;
@@ -367,27 +377,34 @@ export function KanbanTasksPage() {
           {isLoading && !data ? (
             <LoadingBoard />
           ) : (
-            <div className="mt-6 flex max-w-full gap-4 overflow-x-auto overflow-y-visible pb-3">
-              {STATUS_COLUMNS.map((column) => (
-                <KanbanColumn
-                  key={column.status}
-                  column={column}
-                  draggingRowNumber={draggingRowNumber}
-                  isDropTarget={dropTargetStatus === column.status}
-                  savingRowNumber={savingRowNumber}
-                  tasks={columnTasks[column.status]}
-                  visibleTaskCount={visibleTaskCounts[column.status]}
-                  onDragEnd={handleDragEnd}
-                  onDragLeave={(event) => handleDragLeave(event, column.status)}
-                  onDragOver={(event) => handleDragOver(event, column.status)}
-                  onDragStart={handleDragStart}
-                  onDrop={(event) => handleDrop(event, column.status)}
-                  onLoadMore={() => handleLoadMore(column.status)}
-                  onTaskSelect={setSelectedTaskId}
-                  onStatusUpdate={handleStatusUpdate}
-                />
-              ))}
-            </div>
+            <DndContext
+              collisionDetection={closestCorners}
+              sensors={sensors}
+              onDragCancel={handleDragCancel}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDragStart={handleDragStart}
+            >
+              <div className="mt-6 flex max-w-full gap-4 overflow-x-auto overflow-y-visible pb-3">
+                {STATUS_COLUMNS.map((column) => (
+                  <KanbanColumn
+                    key={column.status}
+                    column={column}
+                    draggingRowNumber={draggingRowNumber}
+                    isDropTarget={dropTargetStatus === column.status}
+                    savingRowNumber={savingRowNumber}
+                    tasks={columnTasks[column.status]}
+                    visibleTaskCount={visibleTaskCounts[column.status]}
+                    onLoadMore={() => handleLoadMore(column.status)}
+                    onTaskSelect={setSelectedTaskId}
+                    onStatusUpdate={handleStatusUpdate}
+                  />
+                ))}
+              </div>
+              <DragOverlay>
+                {activeTask ? <KanbanDragPreview task={activeTask} /> : null}
+              </DragOverlay>
+            </DndContext>
           )}
         </section>
       </section>
@@ -411,11 +428,6 @@ function KanbanColumn({
   savingRowNumber,
   tasks,
   visibleTaskCount,
-  onDragEnd,
-  onDragLeave,
-  onDragOver,
-  onDragStart,
-  onDrop,
   onLoadMore,
   onTaskSelect,
   onStatusUpdate,
@@ -426,11 +438,6 @@ function KanbanColumn({
   savingRowNumber: number | null;
   tasks: SheetTask[];
   visibleTaskCount: number;
-  onDragEnd: () => void;
-  onDragLeave: (event: React.DragEvent<HTMLElement>) => void;
-  onDragOver: (event: React.DragEvent<HTMLElement>) => void;
-  onDragStart: (event: React.DragEvent<HTMLElement>, task: SheetTask) => void;
-  onDrop: (event: React.DragEvent<HTMLElement>) => void;
   onLoadMore: () => void;
   onTaskSelect: (taskId: string) => void;
   onStatusUpdate: (task: SheetTask, status: TaskStatus) => Promise<void>;
@@ -438,17 +445,22 @@ function KanbanColumn({
   const visibleTasks = tasks.slice(0, visibleTaskCount);
   const hiddenTaskCount = Math.max(tasks.length - visibleTasks.length, 0);
   const nextLoadCount = Math.min(hiddenTaskCount, LOAD_MORE_TASK_COUNT);
+  const { isOver, setNodeRef } = useDroppable({
+    data: {
+      status: column.status,
+    },
+    id: getColumnDndId(column.status),
+  });
+  const isActiveDropTarget = isDropTarget || isOver;
 
   return (
     <section
+      ref={setNodeRef}
       data-drop-active={isDropTarget ? "true" : "false"}
       data-kanban-column={column.status}
-      onDragLeave={onDragLeave}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
       className={cn(
         "min-h-[34rem] w-[19rem] min-w-0 shrink-0 overflow-hidden rounded-[1.5rem] border p-3 transition lg:w-[21rem]",
-        isDropTarget
+        isActiveDropTarget
           ? "border-teal-400 bg-teal-50/80 shadow-2xl shadow-teal-900/10 ring-4 ring-teal-100"
           : "border-slate-200 bg-slate-50/80",
       )}
@@ -479,32 +491,35 @@ function KanbanColumn({
         ) : null}
       </div>
 
-      {isDropTarget ? (
+      {isActiveDropTarget ? (
         <div className="mb-3 rounded-[1.2rem] border border-dashed border-teal-300 bg-white/80 p-4 text-center text-sm font-black text-teal-800">
           Thả vào đây để chuyển sang {column.title}
         </div>
       ) : null}
 
-      <div className="grid min-w-0 gap-3">
-        {tasks.length ? (
-          visibleTasks.map((task) => (
-            <KanbanCard
-              key={task.id}
-              task={task}
-              draggingRowNumber={draggingRowNumber}
-              isSaving={savingRowNumber === task.rowNumber}
-              onDragEnd={onDragEnd}
-              onDragStart={onDragStart}
-              onTaskSelect={onTaskSelect}
-              onStatusUpdate={onStatusUpdate}
-            />
-          ))
-        ) : (
-          <div className="rounded-[1.2rem] border border-dashed border-slate-200 bg-white/70 p-5 text-center">
-            <p className="text-sm font-black text-slate-400">Không có task</p>
-          </div>
-        )}
-      </div>
+      <SortableContext
+        items={visibleTasks.map((task) => getTaskDndId(task.id))}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="grid min-w-0 gap-3">
+          {tasks.length ? (
+            visibleTasks.map((task) => (
+              <KanbanCard
+                key={task.id}
+                task={task}
+                draggingRowNumber={draggingRowNumber}
+                isSaving={savingRowNumber === task.rowNumber}
+                onTaskSelect={onTaskSelect}
+                onStatusUpdate={onStatusUpdate}
+              />
+            ))
+          ) : (
+            <div className="rounded-[1.2rem] border border-dashed border-slate-200 bg-white/70 p-5 text-center">
+              <p className="text-sm font-black text-slate-400">Không có task</p>
+            </div>
+          )}
+        </div>
+      </SortableContext>
 
       {hiddenTaskCount > 0 ? (
         <button
@@ -524,20 +539,31 @@ function KanbanCard({
   task,
   draggingRowNumber,
   isSaving,
-  onDragEnd,
-  onDragStart,
   onTaskSelect,
   onStatusUpdate,
 }: {
   task: SheetTask;
   draggingRowNumber: number | null;
   isSaving: boolean;
-  onDragEnd: () => void;
-  onDragStart: (event: React.DragEvent<HTMLElement>, task: SheetTask) => void;
   onTaskSelect: (taskId: string) => void;
   onStatusUpdate: (task: SheetTask, status: TaskStatus) => Promise<void>;
 }) {
-  const isDragging = draggingRowNumber === task.rowNumber;
+  const {
+    attributes,
+    isDragging: isSortableDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    data: {
+      task,
+    },
+    disabled: isSaving,
+    id: getTaskDndId(task.id),
+  });
+  const isDragging = draggingRowNumber === task.rowNumber || isSortableDragging;
   const isDone = task.status === "Done";
 
   const handleOpenDetail = () => {
@@ -566,19 +592,21 @@ function KanbanCard({
 
   return (
     <article
+      ref={setNodeRef}
       role="button"
       tabIndex={0}
       aria-grabbed={isDragging}
       aria-label={`Xem chi tiết task: ${task.task}`}
       data-kanban-card="true"
       data-row-number={task.rowNumber}
-      draggable={!isSaving}
       onClick={handleOpenDetail}
-      onDragEnd={onDragEnd}
-      onDragStart={(event) => onDragStart(event, task)}
       onKeyDown={handleCardKeyDown}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
       className={cn(
-        "w-full min-w-0 max-w-full cursor-grab overflow-hidden rounded-[1.25rem] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 transition active:cursor-grabbing",
+        "w-full min-w-0 max-w-full overflow-hidden rounded-[1.25rem] border border-white bg-white p-4 shadow-lg shadow-slate-900/8 transition",
         "hover:-translate-y-0.5 hover:border-teal-100 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
         isDone &&
           "border-slate-200 bg-slate-100/80 text-slate-500 opacity-60 grayscale shadow-none hover:translate-y-0 hover:border-slate-200 hover:shadow-none",
@@ -617,10 +645,19 @@ function KanbanCard({
             </span>
           ) : null}
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[0.65rem] font-black text-slate-400">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          onClick={(event) => event.stopPropagation()}
+          disabled={isSaving}
+          className="inline-flex shrink-0 cursor-grab items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[0.65rem] font-black text-slate-400 transition hover:border-teal-200 hover:text-teal-800 active:cursor-grabbing disabled:cursor-wait disabled:opacity-50"
+          aria-label={`Kéo task ${task.task}`}
+          {...attributes}
+          {...listeners}
+        >
           <AppIcon name="grip" className="size-3.5" />
           Kéo
-        </span>
+        </button>
       </div>
       <h4
         className={cn(
@@ -692,6 +729,23 @@ function KanbanCard({
           ),
         )}
       </div>
+    </article>
+  );
+}
+
+function KanbanDragPreview({ task }: { task: SheetTask }) {
+  return (
+    <article className="w-[19rem] min-w-0 max-w-full overflow-hidden rounded-[1.25rem] border border-teal-200 bg-white p-4 shadow-2xl shadow-slate-900/20 ring-4 ring-teal-100">
+      <div className="flex min-w-0 items-center gap-2">
+        <PriorityPill priority={task.priority} />
+        <span className="rounded-full bg-teal-50 px-2 py-1 text-[0.65rem] font-black text-teal-800">
+          {task.status}
+        </span>
+      </div>
+      <h4 className="mt-3 min-w-0 overflow-hidden break-words text-base font-black leading-snug tracking-[-0.03em] text-slate-950">
+        {task.task}
+      </h4>
+      <p className="mt-2 text-xs font-bold text-slate-400">{task.id}</p>
     </article>
   );
 }
@@ -795,6 +849,59 @@ function buildColumnTasks(tasks: SheetTask[]) {
       tasks.filter((task) => task.status === column.status),
     ]),
   ) as Record<TaskStatus, SheetTask[]>;
+}
+
+function getColumnDndId(status: TaskStatus) {
+  return `${KANBAN_COLUMN_DND_PREFIX}${status}`;
+}
+
+function getTaskDndId(taskId: string) {
+  return `${KANBAN_TASK_DND_PREFIX}${taskId}`;
+}
+
+function getDndTask(data: unknown) {
+  if (!isRecord(data) || !isSheetTaskLike(data.task)) {
+    return null;
+  }
+
+  return data.task;
+}
+
+function getDndTargetStatus(id: unknown, tasks: SheetTask[]) {
+  if (typeof id !== "string") {
+    return null;
+  }
+
+  if (id.startsWith(KANBAN_COLUMN_DND_PREFIX)) {
+    const status = id.slice(KANBAN_COLUMN_DND_PREFIX.length);
+
+    return isTaskStatus(status) ? status : null;
+  }
+
+  if (id.startsWith(KANBAN_TASK_DND_PREFIX)) {
+    const taskId = id.slice(KANBAN_TASK_DND_PREFIX.length);
+
+    return tasks.find((task) => task.id === taskId)?.status ?? null;
+  }
+
+  return null;
+}
+
+function isTaskStatus(value: string): value is TaskStatus {
+  return STATUS_COLUMNS.some((column) => column.status === value);
+}
+
+function isSheetTaskLike(value: unknown): value is SheetTask {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.rowNumber === "number" &&
+    typeof value.status === "string"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function buildInitialVisibleTaskCounts() {

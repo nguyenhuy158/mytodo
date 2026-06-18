@@ -34,6 +34,15 @@ body {
   overflow: hidden;
 }
 
+[cmdk-group-heading] {
+  padding: 0.75rem 0.75rem 0.35rem;
+  color: #0f766e;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .task-detail-dialog-overlay {
     animation: task-detail-overlay-fade-in 220ms ease-out both;
@@ -42,6 +51,14 @@ body {
   .task-detail-dialog-panel {
     animation: task-detail-slide-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
     will-change: opacity, transform;
+  }
+
+  [cmdk-overlay] {
+    animation: task-detail-overlay-fade-in 140ms ease-out both;
+  }
+
+  [cmdk-dialog] {
+    animation: command-palette-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 }
 
@@ -64,5 +81,17 @@ body {
   to {
     opacity: 1;
     transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes command-palette-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -0.75rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
   }
 }

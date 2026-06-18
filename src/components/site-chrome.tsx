@@ -1,7 +1,8 @@
 "use client";
 
+import { Command } from "cmdk";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
@@ -14,7 +15,12 @@ import type {
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { TaskBackupDialog } from "@/components/task-backup-dialog";
 import { TaskConfigDialog } from "@/components/task-config-dialog";
-import { TaskCreateDialog } from "@/components/task-create-dialog";
+import {
+  clearSavedTaskCreateDialog,
+  markTaskCreateDialogOpen,
+  shouldRestoreTaskCreateDialog,
+  TaskCreateDialog,
+} from "@/components/task-create-dialog";
 import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
@@ -99,10 +105,12 @@ const fetchSheetInfo = async (url: string): Promise<SheetRuntimeInfoPayload> => 
 
 export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const navLinkRefs = useRef(new Map<string, HTMLAnchorElement>());
   const desktopSettingsMenuRef = useRef<HTMLDivElement>(null);
   const mobileSettingsMenuRef = useRef<HTMLDivElement>(null);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -136,6 +144,37 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
     saveLastNavHref(currentNavHref);
     navLinkRefs.current.get(currentNavHref)?.focus({ preventScroll: true });
   }, [activeNavHref]);
+
+  useEffect(() => {
+    if (isAuthPage || !shouldRestoreTaskCreateDialog()) {
+      return undefined;
+    }
+
+    const restoreFrame = window.requestAnimationFrame(() => {
+      setIsCreateOpen(true);
+    });
+
+    return () => window.cancelAnimationFrame(restoreFrame);
+  }, [isAuthPage]);
+
+  useEffect(() => {
+    if (isAuthPage) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandOpen((current) => !current);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isAuthPage]);
 
   useEffect(() => {
     if (!isSettingsOpen) {
@@ -177,6 +216,17 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
 
   const handleSettingsToggle = () => {
     setIsSettingsOpen((current) => !current);
+  };
+
+  const handleCreateOpen = () => {
+    markTaskCreateDialogOpen();
+    setIsCreateOpen(true);
+  };
+
+  const handleCommandNavigate = (href: string) => {
+    saveLastNavHref(href);
+    setIsCommandOpen(false);
+    router.push(href);
   };
 
   const handleRefresh = () => {
@@ -229,6 +279,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
         await mutate(TASKS_API_URL, payload as TasksPayload, {
           revalidate: false,
         });
+        clearSavedTaskCreateDialog();
         setIsCreateOpen(false);
 
         return payload as TasksPayload;
@@ -255,6 +306,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const handleSignOut = async () => {
     setIsSigningOut(true);
     clearLastNavHref();
+    clearSavedTaskCreateDialog();
     await mutate(TASKS_API_URL, undefined, { revalidate: false });
     await signOut({ callbackUrl: "/login" });
   };
@@ -338,6 +390,17 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             })}
           </nav>
           <div className="hidden items-center gap-2 lg:flex">
+            <button
+              type="button"
+              onClick={() => setIsCommandOpen(true)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white bg-white/80 px-3 text-sm font-black text-slate-600 shadow-lg shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+            >
+              <AppIcon name="search" className="size-4" />
+              Command
+              <kbd className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[0.65rem] font-black text-slate-400">
+                Cmd K
+              </kbd>
+            </button>
             {userEmail ? (
               <SettingsMenu
                 userEmail={userEmail}
@@ -367,7 +430,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
             ) : null}
             <button
               type="button"
-              onClick={() => setIsCreateOpen(true)}
+              onClick={handleCreateOpen}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-teal-700 px-4 text-sm font-black text-white shadow-lg shadow-teal-900/15 transition hover:-translate-y-0.5 hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
             >
               <AppIcon name="plus" className="size-4" />
@@ -379,7 +442,10 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
       {isCreateOpen ? (
         <TaskCreateDialog
           isSaving={isCreating}
-          onClose={() => setIsCreateOpen(false)}
+          onClose={() => {
+            clearSavedTaskCreateDialog();
+            setIsCreateOpen(false);
+          }}
           onSubmit={handleCreateTask}
         />
       ) : null}
@@ -389,7 +455,32 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
       {isConfigOpen ? (
         <TaskConfigDialog onClose={() => setIsConfigOpen(false)} />
       ) : null}
+      <TaskCommandPalette
+        activeNavHref={activeNavHref}
+        isOpen={isCommandOpen}
+        isRefreshing={isRefreshing}
+        onBackup={() => {
+          setIsSettingsOpen(false);
+          setIsBackupOpen(true);
+        }}
+        onConfig={() => {
+          setIsSettingsOpen(false);
+          setIsConfigOpen(true);
+        }}
+        onCreateTask={handleCreateOpen}
+        onNavigate={handleCommandNavigate}
+        onOpenChange={setIsCommandOpen}
+        onRefresh={handleRefresh}
+      />
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex items-end gap-2 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setIsCommandOpen(true)}
+          className="grid size-12 place-items-center rounded-full border border-white bg-white/85 text-slate-700 shadow-2xl shadow-slate-900/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-teal-200 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
+          aria-label="Mở command palette"
+        >
+          <AppIcon name="search" className="size-5" />
+        </button>
         {userEmail ? (
           <SettingsMenu
             userEmail={userEmail}
@@ -419,7 +510,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
         ) : null}
         <button
           type="button"
-          onClick={() => setIsCreateOpen(true)}
+          onClick={handleCreateOpen}
           className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-2xl shadow-slate-900/25 transition hover:-translate-y-0.5 hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200"
           aria-label="Tạo task mới"
         >
@@ -428,6 +519,159 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
         </button>
       </div>
     </>
+  );
+}
+
+function TaskCommandPalette({
+  activeNavHref,
+  isOpen,
+  isRefreshing,
+  onBackup,
+  onConfig,
+  onCreateTask,
+  onNavigate,
+  onOpenChange,
+  onRefresh,
+}: {
+  activeNavHref?: string;
+  isOpen: boolean;
+  isRefreshing: boolean;
+  onBackup: () => void;
+  onConfig: () => void;
+  onCreateTask: () => void;
+  onNavigate: (href: string) => void;
+  onOpenChange: (isOpen: boolean) => void;
+  onRefresh: () => void;
+}) {
+  const runCommand = (action: () => void) => {
+    onOpenChange(false);
+    action();
+  };
+
+  return (
+    <Command.Dialog
+      open={isOpen}
+      onOpenChange={onOpenChange}
+      label="Task command palette"
+      loop
+      overlayClassName="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-sm"
+      contentClassName="fixed left-1/2 top-[12vh] z-[90] w-[min(calc(100vw-2rem),42rem)] -translate-x-1/2 overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/95 shadow-2xl shadow-slate-950/25"
+    >
+      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+        <AppIcon name="search" className="size-5 text-teal-700" />
+        <Command.Input
+          autoFocus
+          placeholder="Tìm trang hoặc thao tác..."
+          className="h-10 min-w-0 flex-1 bg-transparent text-base font-black text-slate-950 outline-none placeholder:text-slate-400"
+        />
+        <kbd className="hidden rounded-full bg-slate-100 px-2 py-1 font-mono text-[0.65rem] font-black text-slate-400 sm:block">
+          Esc
+        </kbd>
+      </div>
+
+      <Command.List className="max-h-[min(28rem,calc(100dvh-10rem))] overflow-y-auto p-2">
+        <Command.Empty className="px-4 py-8 text-center text-sm font-black text-slate-400">
+          Không thấy command phù hợp.
+        </Command.Empty>
+
+        <Command.Group heading="Điều hướng">
+          {NAV_ITEMS.map((item) => (
+            <Command.Item
+              key={item.href}
+              value={`nav ${item.label} ${item.href}`}
+              keywords={[item.label, item.href]}
+              onSelect={() => runCommand(() => onNavigate(item.href))}
+              className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black text-slate-700 transition data-[selected=true]:bg-teal-50 data-[selected=true]:text-teal-900"
+            >
+              <span className="grid size-9 place-items-center rounded-2xl bg-slate-100 text-slate-500">
+                <AppIcon name={item.icon} className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{item.label}</span>
+                <span className="block truncate text-xs font-semibold text-slate-400">
+                  {item.href}
+                </span>
+              </span>
+              {activeNavHref === item.href ? (
+                <span className="rounded-full bg-slate-950 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-white">
+                  Active
+                </span>
+              ) : null}
+            </Command.Item>
+          ))}
+        </Command.Group>
+
+        <Command.Separator className="my-2 h-px bg-slate-100" />
+
+        <Command.Group heading="Thao tác">
+          <CommandActionItem
+            icon="plus"
+            label="Tạo task"
+            detail="Mở form tạo task mới"
+            onSelect={() => runCommand(onCreateTask)}
+          />
+          <CommandActionItem
+            disabled={isRefreshing}
+            icon={isRefreshing ? "loader" : "refresh"}
+            label={isRefreshing ? "Đang reload dữ liệu" : "Reload dữ liệu"}
+            detail="Force đọc lại Google Sheet"
+            isLoading={isRefreshing}
+            onSelect={() => runCommand(onRefresh)}
+          />
+          <CommandActionItem
+            icon="databaseBackup"
+            label="Backup / Restore"
+            detail="Quản lý snapshot dữ liệu"
+            onSelect={() => runCommand(onBackup)}
+          />
+          <CommandActionItem
+            icon="sliders"
+            label="Config dữ liệu"
+            detail="Kiểm tra nguồn Google Sheet"
+            onSelect={() => runCommand(onConfig)}
+          />
+        </Command.Group>
+      </Command.List>
+    </Command.Dialog>
+  );
+}
+
+function CommandActionItem({
+  detail,
+  disabled = false,
+  icon,
+  isLoading = false,
+  label,
+  onSelect,
+}: {
+  detail: string;
+  disabled?: boolean;
+  icon: AppIconName;
+  isLoading?: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <Command.Item
+      value={`action ${label} ${detail}`}
+      keywords={[label, detail]}
+      disabled={disabled}
+      onSelect={onSelect}
+      className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black text-slate-700 transition data-[disabled=true]:cursor-wait data-[disabled=true]:opacity-60 data-[selected=true]:bg-teal-50 data-[selected=true]:text-teal-900"
+    >
+      <span className="grid size-9 place-items-center rounded-2xl bg-teal-50 text-teal-700">
+        <AppIcon
+          name={icon}
+          className={cn("size-4", isLoading ? "animate-spin" : "")}
+        />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate">{label}</span>
+        <span className="block truncate text-xs font-semibold text-slate-400">
+          {detail}
+        </span>
+      </span>
+    </Command.Item>
   );
 }
 

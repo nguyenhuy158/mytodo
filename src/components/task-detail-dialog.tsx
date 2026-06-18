@@ -1,8 +1,16 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  useForm,
+  useWatch,
+  type Path,
+  type PathValue,
+} from "react-hook-form";
+import { z } from "zod";
 import {
   useState,
-  type FormEvent,
+  type FormEventHandler,
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
@@ -18,32 +26,36 @@ import { DatePickerField } from "@/components/date-picker-field";
 import { formatTaskTimeline } from "@/components/task-timeline";
 import { cn } from "@/lib/utils";
 
-const EDITABLE_PRIORITIES: TaskPriority[] = ["High", "Medium", "Low", "Unknown"];
-const EDITABLE_STATUSES: TaskStatus[] = [
+const EDITABLE_PRIORITIES = ["High", "Medium", "Low", "Unknown"] as const satisfies readonly TaskPriority[];
+const EDITABLE_STATUSES = [
   "Not Started",
   "In Progress",
   "Blocked",
   "Done",
   "Unknown",
-];
+] as const satisfies readonly TaskStatus[];
+const optionalISODateSchema = z
+  .string()
+  .regex(/^$|^\d{4}-\d{2}-\d{2}$/, "Ngày phải đúng format yyyy-mm-dd.");
+const taskEditSchema = z.object({
+  actualDate: optionalISODateSchema,
+  dateReceived: optionalISODateSchema,
+  deadline: optionalISODateSchema,
+  details: z.string(),
+  note: z.string(),
+  priority: z.enum(EDITABLE_PRIORITIES),
+  status: z.enum(EDITABLE_STATUSES),
+  system: z.string(),
+  tags: z.string(),
+  task: z.string().trim().min(1, "Nhập tên task."),
+  timeline: z.string(),
+});
 
-type TaskEditDraft = {
-  tags: string;
-  system: string;
-  task: string;
-  details: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  timeline: string;
-  dateReceived: string;
-  deadline: string;
-  actualDate: string;
-  note: string;
-};
+type TaskEditDraft = z.infer<typeof taskEditSchema>;
 
-type TaskEditDraftChange = <Key extends keyof TaskEditDraft>(
+type TaskEditDraftChange = <Key extends Path<TaskEditDraft>>(
   key: Key,
-  value: TaskEditDraft[Key],
+  value: PathValue<TaskEditDraft, Key>,
 ) => void;
 
 export function TaskDetailDialog({
@@ -58,7 +70,12 @@ export function TaskDetailDialog({
   onTaskUpdate: (input: TaskUpdateInput) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState<TaskEditDraft>(() => toTaskEditDraft(task));
+  const form = useForm<TaskEditDraft>({
+    defaultValues: toTaskEditDraft(task),
+    resolver: zodResolver(taskEditSchema),
+  });
+  const draft = useWatch({ control: form.control }) as TaskEditDraft;
+  const taskError = form.formState.errors.task?.message;
   const taskRowId = formatTaskRowId(task.rowNumber);
   const timelineItems = [
     {
@@ -79,10 +96,10 @@ export function TaskDetailDialog({
   ];
 
   const updateDraft: TaskEditDraftChange = (key, value) => {
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      [key]: value,
-    }));
+    form.setValue(key, value, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const handleClose = () => {
@@ -92,32 +109,30 @@ export function TaskDetailDialog({
   };
 
   const handleOpenEditor = () => {
-    setDraft(toTaskEditDraft(task));
+    form.reset(toTaskEditDraft(task));
     setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
-    setDraft(toTaskEditDraft(task));
+    form.reset(toTaskEditDraft(task));
     setIsEditing(false);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSubmit = form.handleSubmit((values) => {
     const input = {
       rowNumber: task.rowNumber,
       updates: {
-        tags: draft.tags,
-        system: draft.system,
-        task: draft.task,
-        details: draft.details,
-        priority: draft.priority,
-        status: draft.status,
-        timeline: draft.timeline,
-        dateReceived: draft.dateReceived,
-        deadline: draft.deadline,
-        actualDate: draft.actualDate,
-        note: draft.note,
+        tags: values.tags,
+        system: values.system,
+        task: values.task,
+        details: values.details,
+        priority: values.priority,
+        status: values.status,
+        timeline: values.timeline,
+        dateReceived: values.dateReceived,
+        deadline: values.deadline,
+        actualDate: values.actualDate,
+        note: values.note,
       },
     };
 
@@ -125,7 +140,7 @@ export function TaskDetailDialog({
     void onTaskUpdate(input).catch(() => {
       setIsEditing(true);
     });
-  };
+  });
 
   return (
     <div
@@ -188,6 +203,7 @@ export function TaskDetailDialog({
             <TaskEditForm
               draft={draft}
               isSaving={isSaving}
+              taskError={taskError}
               onCancel={handleCancelEdit}
               onDraftChange={updateDraft}
               onSubmit={handleSubmit}
@@ -278,15 +294,17 @@ export function TaskDetailDialog({
 function TaskEditForm({
   draft,
   isSaving,
+  taskError,
   onCancel,
   onDraftChange,
   onSubmit,
 }: {
   draft: TaskEditDraft;
   isSaving: boolean;
+  taskError?: string;
   onCancel: () => void;
   onDraftChange: TaskEditDraftChange;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: FormEventHandler<HTMLFormElement>;
 }) {
   return (
     <form onSubmit={onSubmit} className="grid gap-4">
@@ -299,6 +317,11 @@ function TaskEditForm({
           disabled={isSaving}
           className="h-12 rounded-2xl border border-white bg-white px-4 text-base font-bold normal-case tracking-normal text-slate-900 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
         />
+        {taskError ? (
+          <span className="text-xs font-black normal-case tracking-normal text-rose-700">
+            {taskError}
+          </span>
+        ) : null}
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">

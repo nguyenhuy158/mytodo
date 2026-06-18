@@ -1,32 +1,48 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
+import {
+  useForm,
+  useWatch,
+  type Path,
+  type PathValue,
+} from "react-hook-form";
+import { z } from "zod";
 import type { TaskCreateInput, TaskPriority, TaskStatus } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
 import { DatePickerField } from "@/components/date-picker-field";
 
-const CREATE_PRIORITIES: TaskPriority[] = ["High", "Medium", "Low", "Unknown"];
-const CREATE_STATUSES: TaskStatus[] = [
+const TASK_CREATE_DRAFT_STORAGE_KEY = "mytodo:create-task:draft";
+const TASK_CREATE_OPEN_STORAGE_KEY = "mytodo:create-task:open";
+const TASK_CREATE_OPEN_VALUE = "1";
+const TASK_CREATE_DRAFT_VERSION = 1;
+const CREATE_PRIORITIES = ["High", "Medium", "Low", "Unknown"] as const satisfies readonly TaskPriority[];
+const CREATE_STATUSES = [
   "Not Started",
   "In Progress",
   "Blocked",
   "Done",
   "Unknown",
-];
+] as const satisfies readonly TaskStatus[];
+const optionalISODateSchema = z
+  .string()
+  .regex(/^$|^\d{4}-\d{2}-\d{2}$/, "Ngày phải đúng format yyyy-mm-dd.");
+const taskCreateSchema = z.object({
+  actualDate: optionalISODateSchema,
+  dateReceived: optionalISODateSchema,
+  deadline: optionalISODateSchema,
+  details: z.string(),
+  note: z.string(),
+  priority: z.enum(CREATE_PRIORITIES),
+  status: z.enum(CREATE_STATUSES),
+  system: z.string(),
+  tags: z.string(),
+  task: z.string().trim().min(1, "Nhập tên task."),
+  timeline: z.string(),
+});
 
-type TaskCreateDraft = {
-  tags: string;
-  system: string;
-  task: string;
-  details: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  timeline: string;
-  dateReceived: string;
-  deadline: string;
-  actualDate: string;
-  note: string;
-};
+type TaskCreateDraft = z.infer<typeof taskCreateSchema>;
 
 type TaskCreateDialogProps = {
   isSaving: boolean;
@@ -39,35 +55,51 @@ export function TaskCreateDialog({
   onClose,
   onSubmit,
 }: TaskCreateDialogProps) {
-  const [draft, setDraft] = useState<TaskCreateDraft>(() => getInitialDraft());
+  const form = useForm<TaskCreateDraft>({
+    defaultValues: readSavedDraft() ?? getInitialDraft(),
+    resolver: zodResolver(taskCreateSchema),
+  });
+  const draft = useWatch({ control: form.control }) as TaskCreateDraft;
+  const taskError = form.formState.errors.task?.message;
 
-  const updateDraft = (key: keyof TaskCreateDraft, value: string) => {
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      [key]: value,
-    }));
-  };
+  useEffect(() => {
+    markTaskCreateDialogOpen();
+  }, []);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  useEffect(() => {
+    saveTaskCreateDraft(draft);
+  }, [draft]);
 
-    await onSubmit({
-      tags: draft.tags,
-      system: draft.system,
-      task: draft.task,
-      details: draft.details,
-      priority: draft.priority,
-      status: draft.status,
-      timeline: draft.timeline,
-      dateReceived: draft.dateReceived,
-      deadline: draft.deadline,
-      actualDate: draft.actualDate,
-      note: draft.note,
+  const updateDraft = <Key extends Path<TaskCreateDraft>>(
+    key: Key,
+    value: PathValue<TaskCreateDraft, Key>,
+  ) => {
+    form.setValue(key, value, {
+      shouldDirty: true,
+      shouldValidate: true,
     });
   };
 
+  const handleSubmit = form.handleSubmit(async (values) => {
+    await onSubmit({
+      tags: values.tags,
+      system: values.system,
+      task: values.task,
+      details: values.details,
+      priority: values.priority,
+      status: values.status,
+      timeline: values.timeline,
+      dateReceived: values.dateReceived,
+      deadline: values.deadline,
+      actualDate: values.actualDate,
+      note: values.note,
+    });
+    clearSavedTaskCreateDialog();
+  });
+
   const handleClose = () => {
     if (!isSaving) {
+      clearSavedTaskCreateDialog();
       onClose();
     }
   };
@@ -125,6 +157,11 @@ export function TaskCreateDialog({
                 placeholder="Nhập tên task..."
                 className="h-12 rounded-2xl border border-white bg-white px-4 text-base font-bold normal-case tracking-normal text-slate-900 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
               />
+              {taskError ? (
+                <span className="text-xs font-black normal-case tracking-normal text-rose-700">
+                  {taskError}
+                </span>
+              ) : null}
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -254,6 +291,115 @@ export function TaskCreateDialog({
       </section>
     </div>
   );
+}
+
+export function markTaskCreateDialogOpen() {
+  try {
+    window.localStorage.setItem(
+      TASK_CREATE_OPEN_STORAGE_KEY,
+      TASK_CREATE_OPEN_VALUE,
+    );
+  } catch {
+    // Local storage may be unavailable in restricted browser modes.
+  }
+}
+
+export function shouldRestoreTaskCreateDialog() {
+  try {
+    return (
+      window.localStorage.getItem(TASK_CREATE_OPEN_STORAGE_KEY) ===
+      TASK_CREATE_OPEN_VALUE
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function clearSavedTaskCreateDialog() {
+  try {
+    window.localStorage.removeItem(TASK_CREATE_OPEN_STORAGE_KEY);
+    window.localStorage.removeItem(TASK_CREATE_DRAFT_STORAGE_KEY);
+  } catch {
+    // Local storage may be unavailable in restricted browser modes.
+  }
+}
+
+function saveTaskCreateDraft(draft: TaskCreateDraft) {
+  try {
+    window.localStorage.setItem(
+      TASK_CREATE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        draft,
+        version: TASK_CREATE_DRAFT_VERSION,
+      }),
+    );
+  } catch {
+    // Local storage may be unavailable in restricted browser modes.
+  }
+}
+
+function readSavedDraft() {
+  try {
+    const rawDraft = window.localStorage.getItem(TASK_CREATE_DRAFT_STORAGE_KEY);
+
+    if (!rawDraft) {
+      return null;
+    }
+
+    const value = JSON.parse(rawDraft) as unknown;
+
+    if (!isSavedTaskCreateDraft(value)) {
+      return null;
+    }
+
+    return value.draft;
+  } catch {
+    return null;
+  }
+}
+
+function isSavedTaskCreateDraft(
+  value: unknown,
+): value is { draft: TaskCreateDraft; version: number } {
+  if (!isRecord(value) || value.version !== TASK_CREATE_DRAFT_VERSION) {
+    return false;
+  }
+
+  return isTaskCreateDraft(value.draft);
+}
+
+function isTaskCreateDraft(value: unknown): value is TaskCreateDraft {
+  return (
+    isRecord(value) &&
+    typeof value.tags === "string" &&
+    typeof value.system === "string" &&
+    typeof value.task === "string" &&
+    typeof value.details === "string" &&
+    isTaskPriority(value.priority) &&
+    isTaskStatus(value.status) &&
+    typeof value.timeline === "string" &&
+    typeof value.dateReceived === "string" &&
+    typeof value.deadline === "string" &&
+    typeof value.actualDate === "string" &&
+    typeof value.note === "string"
+  );
+}
+
+function isTaskPriority(value: unknown): value is TaskPriority {
+  return (
+    typeof value === "string" &&
+    CREATE_PRIORITIES.includes(value as TaskPriority)
+  );
+}
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  return (
+    typeof value === "string" && CREATE_STATUSES.includes(value as TaskStatus)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function FormTextInput({

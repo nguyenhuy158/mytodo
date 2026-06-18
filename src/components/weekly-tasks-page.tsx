@@ -276,7 +276,7 @@ export function WeeklyTasksPage() {
           />
         </section>
 
-        <section className="relative z-10 rounded-[2rem] border border-white/70 bg-white/75 p-4 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-6">
+        <section className="relative z-10 min-w-0 overflow-hidden rounded-[2rem] border border-white/70 bg-white/75 p-4 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-teal-700">
@@ -604,7 +604,7 @@ function WeeklyDayGrid({
   };
 
   return (
-    <div className="mt-6 grid items-start gap-3 xl:grid-cols-7">
+    <div className="mt-6 grid min-w-0 items-start gap-3 xl:grid-cols-7">
       {days.map((day) => {
         const isEmpty = day.tasks.length === 0;
         const isExpanded = expandedEmptyDays.has(day.iso);
@@ -613,7 +613,7 @@ function WeeklyDayGrid({
           <section
             key={day.iso}
             className={cn(
-              "rounded-[1.25rem] border bg-slate-50/80 p-3",
+              "min-w-0 overflow-hidden rounded-[1.25rem] border bg-slate-50/80 p-3",
               isEmpty ? "border-dashed border-slate-200/80" : "border-slate-200",
             )}
           >
@@ -639,8 +639,10 @@ function WeeklyDayGrid({
                 </span>
               </button>
             ) : (
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-slate-900">{day.label}</h3>
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <h3 className="min-w-0 text-sm font-black text-slate-900">
+                  {day.label}
+                </h3>
                 <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
                   {day.tasks.length}
                 </span>
@@ -654,7 +656,7 @@ function WeeklyDayGrid({
                 </p>
               ) : null
             ) : (
-              <div className="mt-3 grid gap-2">
+              <div className="mt-3 grid min-w-0 gap-2">
                 {day.tasks.map((task) => (
                   <WeeklyTaskCard
                     key={task.id}
@@ -686,13 +688,13 @@ function WeeklyTaskCard({
       onClick={onClick}
       aria-label={`Xem chi tiết task: ${task.task}`}
       className={cn(
-        "w-full rounded-2xl border bg-white p-3 text-left shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
+        "w-full min-w-0 overflow-hidden rounded-2xl border bg-white p-3 text-left shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200",
         isDone
           ? "border-slate-200 bg-slate-100/80 text-slate-500 opacity-50 grayscale shadow-none hover:translate-y-0 hover:border-slate-200 hover:shadow-none"
           : "opacity-100",
       )}
     >
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         <StatusPill status={task.status} />
         <PriorityPill priority={task.priority} />
         <TaskTimelinePill
@@ -715,13 +717,18 @@ function WeeklyTaskCard({
       </div>
       <h4
         className={cn(
-          "mt-2 text-sm font-black leading-snug text-slate-950",
+          "mt-2 min-w-0 break-words text-sm font-black leading-snug text-slate-950",
           isDone && "text-slate-500 line-through decoration-slate-400/80",
         )}
       >
         {task.task}
       </h4>
-      <p className={cn("mt-2 text-xs font-bold text-slate-500", isDone && "text-slate-400")}>
+      <p
+        className={cn(
+          "mt-2 min-w-0 break-words text-xs font-bold text-slate-500",
+          isDone && "text-slate-400",
+        )}
+      >
         Rec: {task.dateReceived || "No start"} · Due:{" "}
         {task.deadline || "No deadline"}
       </p>
@@ -742,14 +749,19 @@ function WeeklyTaskCard({
       {task.note ? (
         <p
           className={cn(
-            "mt-2 line-clamp-3 rounded-xl bg-slate-50 p-2 text-xs leading-5 text-slate-600",
+            "mt-2 line-clamp-3 min-w-0 break-words rounded-xl bg-slate-50 p-2 text-xs leading-5 text-slate-600",
             isDone && "bg-slate-200/70 text-slate-400",
           )}
         >
           {task.note}
         </p>
       ) : null}
-      <p className={cn("mt-3 text-xs font-black text-teal-700", isDone && "text-slate-400")}>
+      <p
+        className={cn(
+          "mt-3 min-w-0 break-words text-xs font-black text-teal-700",
+          isDone && "text-slate-400",
+        )}
+      >
         Click để xem chi tiết
       </p>
     </button>

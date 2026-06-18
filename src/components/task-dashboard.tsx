@@ -9,6 +9,12 @@ import {
   useState,
 } from "react";
 import {
+  parseAsInteger,
+  parseAsString,
+  parseAsStringLiteral,
+  useQueryStates,
+} from "nuqs";
+import {
   Bar,
   BarChart,
   CartesianGrid,
@@ -46,27 +52,27 @@ const TASK_BOARD_SELECTION_STORAGE_KEY = "mytodo:selected-task:/tasks";
 const TASK_FILTERS_STORAGE_KEY = "mytodo:saved-filters:/tasks";
 const TASKS_PER_PAGE = 12;
 
-const STATUS_FILTERS: Array<TaskStatus | "All"> = [
+const STATUS_FILTERS = [
   "All",
   "In Progress",
   "Not Started",
   "Done",
   "Blocked",
   "Unknown",
-];
-const EDITABLE_STATUSES: TaskStatus[] = STATUS_FILTERS.filter(
+] as const satisfies ReadonlyArray<TaskStatus | "All">;
+const EDITABLE_STATUSES = STATUS_FILTERS.filter(
   (status): status is TaskStatus => status !== "All",
-);
-const EDITABLE_PRIORITIES: TaskPriority[] = [
+) satisfies TaskStatus[];
+const EDITABLE_PRIORITIES = [
   "High",
   "Medium",
   "Low",
   "Unknown",
-];
-const PRIORITY_FILTERS: Array<TaskPriority | "All"> = [
+] as const satisfies readonly TaskPriority[];
+const PRIORITY_FILTERS = [
   "All",
   ...EDITABLE_PRIORITIES,
-];
+] as const satisfies ReadonlyArray<TaskPriority | "All">;
 
 type DeadlineFilter = "all" | "today" | "week";
 type DashboardView = "overview" | "charts" | "tasks";
@@ -102,6 +108,11 @@ const DEADLINE_FILTERS: Array<{
   { value: "today", label: "Hôm nay" },
   { value: "week", label: "Tuần này T2-CN" },
 ];
+const DEADLINE_FILTER_VALUES = [
+  "all",
+  "today",
+  "week",
+] as const satisfies readonly DeadlineFilter[];
 
 const DEFAULT_SAVED_FILTERS: SavedTaskFilter[] = [
   {
@@ -159,11 +170,28 @@ const fetcher = async (url: string): Promise<TasksPayload> => {
 };
 
 export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | "All">("All");
-  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("All");
-  const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
-  const [query, setQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [
+    {
+      deadline: deadlineFilter,
+      page: currentPage,
+      priority: priorityFilter,
+      q: query,
+      status: statusFilter,
+    },
+    setTaskQueryState,
+  ] = useQueryStates(
+    {
+      deadline: parseAsStringLiteral(DEADLINE_FILTER_VALUES).withDefault("all"),
+      page: parseAsInteger.withDefault(1),
+      priority: parseAsStringLiteral(PRIORITY_FILTERS).withDefault("All"),
+      q: parseAsString.withDefault(""),
+      status: parseAsStringLiteral(STATUS_FILTERS).withDefault("All"),
+    },
+    {
+      history: "replace",
+      shallow: true,
+    },
+  );
   const [savingRowNumber, setSavingRowNumber] = useState<number | null>(null);
   const [savedFilters, setSavedFilters] = useState<SavedTaskFilter[]>([]);
   const [hasLoadedSavedFilters, setHasLoadedSavedFilters] = useState(false);
@@ -269,7 +297,7 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   const stats = useMemo(() => buildStats(tasks), [tasks]);
   const timeline = useMemo(() => buildTimeline(filteredTasks), [filteredTasks]);
   const pageCount = Math.max(1, Math.ceil(filteredTasks.length / TASKS_PER_PAGE));
-  const visiblePage = Math.min(currentPage, pageCount);
+  const visiblePage = Math.min(Math.max(currentPage, 1), pageCount);
   const pageStartIndex = filteredTasks.length
     ? (visiblePage - 1) * TASKS_PER_PAGE
     : 0;
@@ -284,32 +312,31 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
 
   const handleStatusChange = (nextStatus: TaskStatus | "All") => {
     startTransition(() => {
-      setStatusFilter(nextStatus);
-      setCurrentPage(1);
+      void setTaskQueryState({ page: 1, status: nextStatus });
     });
   };
 
   const handlePriorityChange = (nextPriority: PriorityFilter) => {
     startTransition(() => {
-      setPriorityFilter(nextPriority);
-      setCurrentPage(1);
+      void setTaskQueryState({ page: 1, priority: nextPriority });
     });
   };
 
   const handleDeadlineChange = (nextDeadline: DeadlineFilter) => {
     startTransition(() => {
-      setDeadlineFilter(nextDeadline);
-      setCurrentPage(1);
+      void setTaskQueryState({ deadline: nextDeadline, page: 1 });
     });
   };
 
   const handleSavedFilterApply = (filter: SavedTaskFilter) => {
     startTransition(() => {
-      setStatusFilter(filter.status);
-      setPriorityFilter(filter.priority);
-      setDeadlineFilter(filter.deadline);
-      setQuery(filter.query);
-      setCurrentPage(1);
+      void setTaskQueryState({
+        deadline: filter.deadline,
+        page: 1,
+        priority: filter.priority,
+        q: filter.query,
+        status: filter.status,
+      });
     });
   };
 
@@ -347,16 +374,16 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   };
 
   const handleSearchChange = (nextQuery: string) => {
-    setQuery(nextQuery);
-
     startTransition(() => {
-      setCurrentPage(1);
+      void setTaskQueryState({ page: 1, q: nextQuery });
     });
   };
 
   const handlePageChange = (nextPage: number) => {
     startTransition(() => {
-      setCurrentPage(Math.min(Math.max(nextPage, 1), pageCount));
+      void setTaskQueryState({
+        page: Math.min(Math.max(nextPage, 1), pageCount),
+      });
     });
   };
 
