@@ -563,56 +563,88 @@ function WeeklyDayGrid({
   days: WeekDay[];
   onTaskSelect: (taskId: string) => void;
 }) {
-  const hasTasks = days.some((day) => day.tasks.length > 0);
+  const [expandedEmptyDays, setExpandedEmptyDays] = useState<Set<string>>(
+    () => new Set(),
+  );
 
-  if (!hasTasks) {
-    return (
-      <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/60 p-8 text-center">
-        <p className="text-lg font-black text-slate-800">
-          Không có task trong tuần này
-        </p>
-        <p className="mt-2 text-sm text-slate-500">
-          Các task có deadline từ thứ 2 tới chủ nhật sẽ hiện ở đây.
-        </p>
-      </div>
-    );
-  }
+  const toggleEmptyDay = (dayISO: string) => {
+    setExpandedEmptyDays((currentDays) => {
+      const nextDays = new Set(currentDays);
+
+      if (nextDays.has(dayISO)) {
+        nextDays.delete(dayISO);
+      } else {
+        nextDays.add(dayISO);
+      }
+
+      return nextDays;
+    });
+  };
 
   return (
-    <div className="mt-6 grid gap-3 xl:grid-cols-7">
-      {days.map((day) => (
-        <section
-          key={day.iso}
-          className={cn(
-            "min-h-36 rounded-[1.25rem] border bg-slate-50/80 p-3",
-            day.tasks.length
-              ? "border-slate-200"
-              : "border-dashed border-slate-200 opacity-70",
-          )}
-        >
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-black text-slate-900">{day.label}</h3>
-            <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
-              {day.tasks.length}
-            </span>
-          </div>
-          <div className="grid gap-2">
-            {day.tasks.length ? (
-              day.tasks.map((task) => (
-                <WeeklyTaskCard
-                  key={task.id}
-                  task={task}
-                  onClick={() => onTaskSelect(task.id)}
-                />
-              ))
-            ) : (
-              <p className="rounded-2xl bg-white/70 p-3 text-sm font-semibold text-slate-400">
-                Không có deadline
-              </p>
+    <div className="mt-6 grid items-start gap-3 xl:grid-cols-7">
+      {days.map((day) => {
+        const isEmpty = day.tasks.length === 0;
+        const isExpanded = expandedEmptyDays.has(day.iso);
+
+        return (
+          <section
+            key={day.iso}
+            className={cn(
+              "rounded-[1.25rem] border bg-slate-50/80 p-3",
+              isEmpty ? "border-dashed border-slate-200/80" : "border-slate-200",
             )}
-          </div>
-        </section>
-      ))}
+          >
+            {isEmpty ? (
+              <button
+                type="button"
+                onClick={() => toggleEmptyDay(day.iso)}
+                aria-expanded={isExpanded}
+                className="flex w-full items-center justify-between gap-2 rounded-2xl text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100"
+              >
+                <h3 className="text-sm font-black text-slate-900">{day.label}</h3>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
+                    {day.tasks.length}
+                  </span>
+                  <AppIcon
+                    name="chevronDown"
+                    className={cn(
+                      "size-4 text-slate-400 transition-transform",
+                      isExpanded && "rotate-180",
+                    )}
+                  />
+                </span>
+              </button>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-black text-slate-900">{day.label}</h3>
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
+                  {day.tasks.length}
+                </span>
+              </div>
+            )}
+
+            {isEmpty ? (
+              isExpanded ? (
+                <p className="mt-3 rounded-2xl bg-white/70 p-3 text-sm font-semibold text-slate-400">
+                  Không có deadline
+                </p>
+              ) : null
+            ) : (
+              <div className="mt-3 grid gap-2">
+                {day.tasks.map((task) => (
+                  <WeeklyTaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskSelect(task.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

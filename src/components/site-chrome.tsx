@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
-import { mutate } from "swr";
+import useSWR, { mutate } from "swr";
 import type {
   SheetRuntimeInfoPayload,
   TaskCreateInput,
@@ -83,8 +83,8 @@ const fetchTasks = async (url: string): Promise<TasksPayload> => {
   return payload;
 };
 
-const fetchSheetInfo = async (): Promise<SheetRuntimeInfoPayload> => {
-  const response = await fetch(SHEET_INFO_API_URL, { cache: "no-store" });
+const fetchSheetInfo = async (url: string): Promise<SheetRuntimeInfoPayload> => {
+  const response = await fetch(url, { cache: "no-store" });
   const payload = await response.json();
 
   if (!response.ok) {
@@ -109,13 +109,22 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isSheetInfoLoading, setIsSheetInfoLoading] = useState(false);
-  const [sheetInfo, setSheetInfo] = useState<SheetRuntimeInfoPayload | null>(
-    null,
-  );
-  const [sheetInfoError, setSheetInfoError] = useState<string | null>(null);
   const activeNavHref = getActiveNavHref(pathname);
   const isAuthPage = pathname === "/login";
+  const {
+    data: sheetInfo = null,
+    error: sheetInfoFetchError,
+    isLoading: isSheetInfoLoading,
+  } = useSWR<SheetRuntimeInfoPayload>(
+    !isAuthPage && isSettingsOpen ? SHEET_INFO_API_URL : null,
+    fetchSheetInfo,
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+    },
+  );
+  const sheetInfoError =
+    sheetInfoFetchError instanceof Error ? sheetInfoFetchError.message : null;
 
   useEffect(() => {
     const currentNavHref = activeNavHref ?? readLastNavHref();
@@ -166,36 +175,7 @@ export function SiteHeader({ userEmail }: SiteHeaderProps) {
     };
   }, [isSettingsOpen]);
 
-  const loadSheetInfo = () => {
-    if (sheetInfo || isSheetInfoLoading) {
-      return;
-    }
-
-    const loadInfo = async () => {
-      setIsSheetInfoLoading(true);
-      setSheetInfoError(null);
-
-      try {
-        setSheetInfo(await fetchSheetInfo());
-      } catch (infoError) {
-        setSheetInfoError(
-          infoError instanceof Error
-            ? infoError.message
-            : "Không đọc được cấu hình Google Sheet.",
-        );
-      } finally {
-        setIsSheetInfoLoading(false);
-      }
-    };
-
-    void loadInfo();
-  };
-
   const handleSettingsToggle = () => {
-    if (!isSettingsOpen && !isAuthPage) {
-      loadSheetInfo();
-    }
-
     setIsSettingsOpen((current) => !current);
   };
 
