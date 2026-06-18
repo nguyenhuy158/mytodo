@@ -35,6 +35,8 @@ AUTH_URL=https://task.huycode.click
 NEXTAUTH_URL=https://task.huycode.click
 APP_BASE_URL=https://task.huycode.click
 TASK_BACKUP_DIR=/app/task-backups
+TASK_BACKUP_CRON_ENABLED=true
+TASK_BACKUP_CRON_INTERVAL_HOURS=12
 # RESEND_API_KEY=re_xxxxxxxxx
 # MAGIC_LINK_FROM="2026 Tasks <login@your-domain.com>"
 RESEND_API_KEY=
@@ -68,6 +70,11 @@ are both configured.
 `docker-compose.dokploy.yml` mounts a named volume at `/app/task-backups`.
 Keep `TASK_BACKUP_DIR=/app/task-backups` so `Backup now` can write snapshots
 as the non-root `nextjs` user and backups survive container replacement.
+The server also starts an automatic backup cron in production by default. Keep
+`TASK_BACKUP_CRON_ENABLED=true` and `TASK_BACKUP_CRON_INTERVAL_HOURS=12` for one
+snapshot every 12 hours, or set `TASK_BACKUP_CRON_ENABLED=false` to disable it.
+Run only one app replica when cron is enabled so two containers do not create the
+same scheduled backup.
 
 ## Credential Notes
 

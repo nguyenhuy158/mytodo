@@ -33,3 +33,36 @@ body {
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .task-detail-dialog-overlay {
+    animation: task-detail-overlay-fade-in 220ms ease-out both;
+  }
+
+  .task-detail-dialog-panel {
+    animation: task-detail-slide-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: opacity, transform;
+  }
+}
+
+@keyframes task-detail-overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes task-detail-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(105vw) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}

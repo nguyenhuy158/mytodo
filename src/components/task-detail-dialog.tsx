@@ -127,14 +127,14 @@ export function TaskDetailDialog({
     <div
       role="presentation"
       onClick={handleClose}
-      className="fixed inset-0 z-[80] bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6"
+      className="task-detail-dialog-overlay fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6"
     >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-detail-title"
         onClick={(event) => event.stopPropagation()}
-        className="ml-auto flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/70 bg-[#f9f4ec] shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100vh-3rem)]"
+        className="task-detail-dialog-panel mx-auto flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/70 bg-[#f9f4ec] shadow-2xl shadow-slate-950/25 sm:max-h-[calc(100vh-3rem)]"
       >
         <div className="border-b border-slate-200 bg-white/70 p-5">
           <div className="flex items-start justify-between gap-4">

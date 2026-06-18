@@ -82,6 +82,11 @@ From the shared header, click `Backup`.
 - `Backup now` creates a local JSON snapshot under `TASK_BACKUP_DIR`, or
   `.task-backups` when that env var is not set.
 - Dokploy stores backups in the named volume mounted at `/app/task-backups`.
+- Production starts an automatic server-side backup cron by default. It checks
+  the newest snapshot and creates one only when it is older than
+  `TASK_BACKUP_CRON_INTERVAL_HOURS`, which defaults to `12`.
+- To disable scheduled backup, set `TASK_BACKUP_CRON_ENABLED=false`.
+- Cron-created backups are recorded in Activity Log as `system@cron`.
 - `Restore` requires typing `RESTORE`; the server creates a safety backup first, then writes the selected snapshot back to the current Sheet.
 - Backup files contain row values only, not Google credentials.
 

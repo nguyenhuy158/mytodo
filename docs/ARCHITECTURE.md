@@ -130,6 +130,17 @@ Shared header Backup button
   -> clear server cache and force refresh tasks
 ```
 
+Automatic backup flow:
+
+```txt
+src/instrumentation.ts
+  -> start backup cron once per Node.js server process
+  -> backup application service
+  -> TaskRepository + TaskBackupRepository ports
+  -> save row snapshot when the latest backup is older than the configured interval
+  -> record Activity Log entry as system@cron
+```
+
 Weekly AI summary flow:
 
 ```txt
