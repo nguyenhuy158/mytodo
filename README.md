@@ -20,8 +20,8 @@ Next.js dashboard đọc task từ Google Sheet private bằng Google Sheets API
 6. Tạo `.env.local` từ `.env.example`.
 
 ```txt
-GOOGLE_SHEET_ID=1Sv86oc9zXbvwSsD956uT4opSU8JqP04s
-GOOGLE_SHEET_GID=689856921
+GOOGLE_SHEET_ID=1byV948tqGwx8dZKwhVRC-6qlHtuxRu2T
+GOOGLE_SHEET_GID=509531053
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 NEXT_PUBLIC_TASK_POLLING_MS=15000
 TASK_CACHE_TTL_MS=60000

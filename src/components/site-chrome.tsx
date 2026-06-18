@@ -491,8 +491,10 @@ function SettingsMenu({
         <div
           role="menu"
           className={cn(
-            "absolute z-[60] w-[min(calc(100vw-2rem),22rem)] rounded-[1.25rem] border border-white/80 bg-white/95 p-3 text-left shadow-2xl shadow-slate-900/20 backdrop-blur-xl",
-            isMobile ? "right-0 bottom-14" : "right-0 top-12",
+            "z-[60] rounded-[1.25rem] border border-white/80 bg-white/95 p-3 text-left shadow-2xl shadow-slate-900/20 backdrop-blur-xl",
+            isMobile
+              ? "fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] max-h-[min(34rem,calc(100dvh-7rem))] overflow-y-auto overscroll-contain"
+              : "absolute right-0 top-12 w-[min(calc(100vw-2rem),22rem)]",
           )}
         >
           <div className="border-b border-slate-100 px-2 pb-3">
