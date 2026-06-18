@@ -96,8 +96,12 @@ export async function generateGeminiJson<T>({
       ],
       generationConfig: {
         maxOutputTokens,
-        responseJsonSchema: responseSchema,
-        responseMimeType: "application/json",
+        responseFormat: {
+          text: {
+            mimeType: "application/json",
+            schema: responseSchema,
+          },
+        },
         temperature,
       },
       systemInstruction: systemInstruction
@@ -208,9 +212,36 @@ function getEmptyResponseMessage(payload: GeminiGenerateContentResponse) {
 }
 
 function parseGeminiJson<T>(text: string) {
+  const jsonText = extractJsonText(text);
+
   try {
-    return JSON.parse(text) as T;
+    return JSON.parse(jsonText) as T;
   } catch {
     throw new GeminiRequestError("Gemini trả JSON không hợp lệ.", 502);
   }
+}
+
+function extractJsonText(text: string) {
+  const trimmed = text.trim();
+  const fencedJson = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+
+  if (fencedJson?.[1]) {
+    return fencedJson[1].trim();
+  }
+
+  const firstObjectBrace = trimmed.indexOf("{");
+  const lastObjectBrace = trimmed.lastIndexOf("}");
+
+  if (firstObjectBrace >= 0 && lastObjectBrace > firstObjectBrace) {
+    return trimmed.slice(firstObjectBrace, lastObjectBrace + 1).trim();
+  }
+
+  const firstArrayBracket = trimmed.indexOf("[");
+  const lastArrayBracket = trimmed.lastIndexOf("]");
+
+  if (firstArrayBracket >= 0 && lastArrayBracket > firstArrayBracket) {
+    return trimmed.slice(firstArrayBracket, lastArrayBracket + 1).trim();
+  }
+
+  return trimmed;
 }
