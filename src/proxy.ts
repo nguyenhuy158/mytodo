@@ -2,7 +2,15 @@ import { auth } from "@/auth";
 import { isEmailAllowed } from "@/lib/auth-config";
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/api/auth", "/api/health", "/icon"];
+const PUBLIC_PATH_PREFIXES = [
+  "/login",
+  "/api/auth",
+  "/api/health",
+  "/favicon.ico",
+  "/icon",
+  "/apple-icon",
+  "/manifest.webmanifest",
+];
 
 export default auth((request) => {
   const { pathname, search } = request.nextUrl;
@@ -30,7 +38,7 @@ export default auth((request) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon|robots.txt|sitemap.xml).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|robots.txt|sitemap.xml).*)",
   ],
 };
 

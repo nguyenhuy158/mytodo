@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import {
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Bar,
   BarChart,
@@ -35,6 +41,7 @@ import { cn } from "@/lib/utils";
 
 const TASKS_API_URL = "/api/tasks";
 const TASK_BOARD_SELECTION_STORAGE_KEY = "mytodo:selected-task:/tasks";
+const TASK_FILTERS_STORAGE_KEY = "mytodo:saved-filters:/tasks";
 const TASKS_PER_PAGE = 12;
 
 const STATUS_FILTERS: Array<TaskStatus | "All"> = [
@@ -54,9 +61,27 @@ const EDITABLE_PRIORITIES: TaskPriority[] = [
   "Low",
   "Unknown",
 ];
+const PRIORITY_FILTERS: Array<TaskPriority | "All"> = [
+  "All",
+  ...EDITABLE_PRIORITIES,
+];
 
 type DeadlineFilter = "all" | "today" | "week";
 type DashboardView = "overview" | "charts" | "tasks";
+type PriorityFilter = TaskPriority | "All";
+
+type TaskFilterSnapshot = {
+  deadline: DeadlineFilter;
+  priority: PriorityFilter;
+  query: string;
+  status: TaskStatus | "All";
+};
+
+type SavedTaskFilter = TaskFilterSnapshot & {
+  custom?: boolean;
+  id: string;
+  label: string;
+};
 
 type TaskFetchError = Error & {
   payload?: {
@@ -74,6 +99,33 @@ const DEADLINE_FILTERS: Array<{
   { value: "all", label: "Tất cả deadline" },
   { value: "today", label: "Hôm nay" },
   { value: "week", label: "Tuần này T2-CN" },
+];
+
+const DEFAULT_SAVED_FILTERS: SavedTaskFilter[] = [
+  {
+    deadline: "all",
+    id: "default-high-in-progress",
+    label: "High + In Progress",
+    priority: "High",
+    query: "",
+    status: "In Progress",
+  },
+  {
+    deadline: "all",
+    id: "default-blocked",
+    label: "Blocked",
+    priority: "All",
+    query: "",
+    status: "Blocked",
+  },
+  {
+    deadline: "week",
+    id: "default-deadline-week",
+    label: "Deadline tuần này",
+    priority: "All",
+    query: "",
+    status: "All",
+  },
 ];
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -106,11 +158,31 @@ const fetcher = async (url: string): Promise<TasksPayload> => {
 
 export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "All">("All");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("All");
   const [deadlineFilter, setDeadlineFilter] = useState<DeadlineFilter>("all");
   const [query, setQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [savingRowNumber, setSavingRowNumber] = useState<number | null>(null);
+  const [savedFilters, setSavedFilters] = useState<SavedTaskFilter[]>([]);
+  const [hasLoadedSavedFilters, setHasLoadedSavedFilters] = useState(false);
   const deferredQuery = useDeferredValue(query);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSavedFilters(readSavedTaskFilters());
+      setHasLoadedSavedFilters(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedSavedFilters) {
+      return;
+    }
+
+    writeSavedTaskFilters(savedFilters);
+  }, [hasLoadedSavedFilters, savedFilters]);
 
   const { data, error, mutate } = useSWR<TasksPayload>(
     TASKS_API_URL,
@@ -135,7 +207,27 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   const taskError = error as TaskFetchError | undefined;
   const charts = useMemo(() => buildChartData(tasks), [tasks]);
   const deadlineCounts = useMemo(() => buildDeadlineFilterCounts(tasks), [tasks]);
+  const priorityCounts = useMemo(() => buildPriorityFilterCounts(tasks), [tasks]);
   const weekWindow = useMemo(() => getCurrentWeekWindow(), []);
+  const allSavedFilters = useMemo(
+    () => [...DEFAULT_SAVED_FILTERS, ...savedFilters],
+    [savedFilters],
+  );
+  const currentFilter = useMemo<TaskFilterSnapshot>(
+    () => ({
+      deadline: deadlineFilter,
+      priority: priorityFilter,
+      query: query.trim(),
+      status: statusFilter,
+    }),
+    [deadlineFilter, priorityFilter, query, statusFilter],
+  );
+  const activeSavedFilterId = useMemo(
+    () =>
+      allSavedFilters.find((filter) => isSameTaskFilter(filter, currentFilter))
+        ?.id ?? null,
+    [allSavedFilters, currentFilter],
+  );
   const filteredTasks = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
     const dueWindow = getCurrentWeekWindow();
@@ -144,6 +236,8 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
       .filter((task) => {
         const matchesStatus =
           statusFilter === "All" ? true : task.status === statusFilter;
+        const matchesPriority =
+          priorityFilter === "All" ? true : task.priority === priorityFilter;
         const matchesDeadline = matchesDeadlineFilter(
           task,
           deadlineFilter,
@@ -165,10 +259,10 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
               .includes(normalizedQuery)
           : true;
 
-        return matchesStatus && matchesDeadline && matchesQuery;
+        return matchesStatus && matchesPriority && matchesDeadline && matchesQuery;
       })
       .sort(compareTasksByNewestDateReceived);
-  }, [deadlineFilter, deferredQuery, statusFilter, tasks]);
+  }, [deadlineFilter, deferredQuery, priorityFilter, statusFilter, tasks]);
 
   const stats = useMemo(() => buildStats(tasks), [tasks]);
   const timeline = useMemo(() => buildTimeline(filteredTasks), [filteredTasks]);
@@ -193,11 +287,61 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
     });
   };
 
+  const handlePriorityChange = (nextPriority: PriorityFilter) => {
+    startTransition(() => {
+      setPriorityFilter(nextPriority);
+      setCurrentPage(1);
+    });
+  };
+
   const handleDeadlineChange = (nextDeadline: DeadlineFilter) => {
     startTransition(() => {
       setDeadlineFilter(nextDeadline);
       setCurrentPage(1);
     });
+  };
+
+  const handleSavedFilterApply = (filter: SavedTaskFilter) => {
+    startTransition(() => {
+      setStatusFilter(filter.status);
+      setPriorityFilter(filter.priority);
+      setDeadlineFilter(filter.deadline);
+      setQuery(filter.query);
+      setCurrentPage(1);
+    });
+  };
+
+  const handleSavedFilterSave = () => {
+    if (isEmptyTaskFilter(currentFilter)) {
+      toast.message("Chọn ít nhất một filter trước khi lưu.");
+      return;
+    }
+
+    if (
+      allSavedFilters.some((savedFilter) =>
+        isSameTaskFilter(savedFilter, currentFilter),
+      )
+    ) {
+      toast.message("Bộ lọc này đã có sẵn.");
+      return;
+    }
+
+    const nextFilter: SavedTaskFilter = {
+      ...currentFilter,
+      custom: true,
+      id: createSavedTaskFilterId(),
+      label: buildSavedTaskFilterLabel(currentFilter),
+    };
+
+    setSavedFilters((currentSavedFilters) => [nextFilter, ...currentSavedFilters]);
+    toast.success("Đã lưu filter vào trình duyệt này.");
+  };
+
+  const handleSavedFilterDelete = (filterId: string) => {
+    setSavedFilters((currentSavedFilters) =>
+      currentSavedFilters.filter((savedFilter) => savedFilter.id !== filterId),
+    );
+    toast.success("Đã xoá saved filter.");
   };
 
   const handleSearchChange = (nextQuery: string) => {
@@ -277,19 +421,27 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
 
         {view === "tasks" ? (
           <TaskBoardSection
+            activeSavedFilterId={activeSavedFilterId}
             deadlineCounts={deadlineCounts}
             deadlineFilter={deadlineFilter}
             filteredCount={filteredTasks.length}
             onDeadlineChange={handleDeadlineChange}
             onPageChange={handlePageChange}
+            onPriorityChange={handlePriorityChange}
             onSearchChange={handleSearchChange}
+            onSavedFilterApply={handleSavedFilterApply}
+            onSavedFilterDelete={handleSavedFilterDelete}
+            onSavedFilterSave={handleSavedFilterSave}
             onStatusChange={handleStatusChange}
             pageCount={pageCount}
             pageEndIndex={pageEndIndex}
             pageStartIndex={pageStartIndex}
             paginatedTasks={paginatedTasks}
+            priorityCounts={priorityCounts}
+            priorityFilter={priorityFilter}
             query={query}
             savingRowNumber={savingRowNumber}
+            savedFilters={allSavedFilters}
             statusFilter={statusFilter}
             timeline={timeline}
             onTaskSelect={setSelectedTaskId}
@@ -423,19 +575,27 @@ function OverviewShortcutCard({
 }
 
 function TaskBoardSection({
+  activeSavedFilterId,
   deadlineCounts,
   deadlineFilter,
   filteredCount,
   onDeadlineChange,
   onPageChange,
+  onPriorityChange,
   onSearchChange,
+  onSavedFilterApply,
+  onSavedFilterDelete,
+  onSavedFilterSave,
   onStatusChange,
   pageCount,
   pageEndIndex,
   pageStartIndex,
   paginatedTasks,
+  priorityCounts,
+  priorityFilter,
   query,
   savingRowNumber,
+  savedFilters,
   statusFilter,
   timeline,
   onTaskSelect,
@@ -443,19 +603,27 @@ function TaskBoardSection({
   visiblePage,
   weekWindow,
 }: {
+  activeSavedFilterId: string | null;
   deadlineCounts: Record<DeadlineFilter, number>;
   deadlineFilter: DeadlineFilter;
   filteredCount: number;
   onDeadlineChange: (deadline: DeadlineFilter) => void;
   onPageChange: (page: number) => void;
+  onPriorityChange: (priority: PriorityFilter) => void;
   onSearchChange: (query: string) => void;
+  onSavedFilterApply: (filter: SavedTaskFilter) => void;
+  onSavedFilterDelete: (filterId: string) => void;
+  onSavedFilterSave: () => void;
   onStatusChange: (status: TaskStatus | "All") => void;
   pageCount: number;
   pageEndIndex: number;
   pageStartIndex: number;
   paginatedTasks: SheetTask[];
+  priorityCounts: Record<PriorityFilter, number>;
+  priorityFilter: PriorityFilter;
   query: string;
   savingRowNumber: number | null;
+  savedFilters: SavedTaskFilter[];
   statusFilter: TaskStatus | "All";
   timeline: TimelineWindow;
   onTaskSelect: (taskId: string) => void;
@@ -493,6 +661,67 @@ function TaskBoardSection({
         </div>
       </div>
 
+      <div className="mt-5 rounded-3xl border border-teal-100 bg-white/55 p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid size-10 place-items-center rounded-2xl bg-teal-100 text-teal-800">
+              <AppIcon name="save" className="size-4" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-slate-950">Saved filters</p>
+              <p className="text-xs font-semibold text-slate-500">
+                Lưu trên trình duyệt này bằng localStorage.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onSavedFilterSave}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-teal-800 px-4 text-sm font-black text-white shadow-lg shadow-teal-900/15 transition hover:bg-teal-700"
+          >
+            <AppIcon name="plus" className="size-4" />
+            Lưu filter hiện tại
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {savedFilters.map((filter) => (
+            <div
+              key={filter.id}
+              className={cn(
+                "flex min-w-0 overflow-hidden rounded-2xl border bg-white/85 shadow-sm transition",
+                activeSavedFilterId === filter.id
+                  ? "border-slate-950 ring-4 ring-slate-900/10"
+                  : "border-slate-200 hover:border-teal-200",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onSavedFilterApply(filter)}
+                className="min-w-0 px-4 py-2 text-left"
+              >
+                <span className="block truncate text-sm font-black text-slate-950">
+                  {filter.label}
+                </span>
+                <span className="block truncate text-xs font-semibold text-slate-500">
+                  {describeSavedTaskFilter(filter)}
+                </span>
+              </button>
+              {filter.custom ? (
+                <button
+                  type="button"
+                  onClick={() => onSavedFilterDelete(filter.id)}
+                  aria-label={`Xoá filter ${filter.label}`}
+                  className="grid w-10 place-items-center border-l border-slate-200 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <AppIcon name="trash" className="size-4" />
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <AppIcon name="filter" className="size-4 text-slate-400" />
         {STATUS_FILTERS.map((status) => (
@@ -508,6 +737,28 @@ function TaskBoardSection({
             )}
           >
             {status}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <AppIcon name="sliders" className="size-4 text-slate-400" />
+        {PRIORITY_FILTERS.map((priority) => (
+          <button
+            key={priority}
+            type="button"
+            onClick={() => onPriorityChange(priority)}
+            className={cn(
+              "inline-flex items-center rounded-full border px-4 py-2 text-sm font-bold transition",
+              priorityFilter === priority
+                ? "border-amber-600 bg-amber-500 text-white shadow-lg shadow-amber-900/15"
+                : "border-white bg-white/70 text-slate-600 hover:border-amber-200 hover:text-amber-800",
+            )}
+          >
+            {priority === "All" ? "All priority" : priority}
+            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-xs">
+              {priorityCounts[priority]}
+            </span>
           </button>
         ))}
       </div>
@@ -1536,4 +1787,174 @@ function formatShortDate(value: string) {
     day: "2-digit",
     month: "2-digit",
   }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function buildPriorityFilterCounts(tasks: SheetTask[]) {
+  return Object.fromEntries(
+    PRIORITY_FILTERS.map((priority) => [
+      priority,
+      priority === "All"
+        ? tasks.length
+        : tasks.filter((task) => task.priority === priority).length,
+    ]),
+  ) as Record<PriorityFilter, number>;
+}
+
+function readSavedTaskFilters(): SavedTaskFilter[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const rawFilters = window.localStorage.getItem(TASK_FILTERS_STORAGE_KEY);
+
+    if (!rawFilters) {
+      return [];
+    }
+
+    const parsedFilters: unknown = JSON.parse(rawFilters);
+
+    if (!Array.isArray(parsedFilters)) {
+      return [];
+    }
+
+    return parsedFilters
+      .map(normalizeSavedTaskFilter)
+      .filter((filter): filter is SavedTaskFilter => Boolean(filter));
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedTaskFilters(filters: SavedTaskFilter[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const customFilters = filters.filter((filter) => filter.custom);
+
+  if (!customFilters.length) {
+    window.localStorage.removeItem(TASK_FILTERS_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(
+    TASK_FILTERS_STORAGE_KEY,
+    JSON.stringify(customFilters),
+  );
+}
+
+function normalizeSavedTaskFilter(value: unknown): SavedTaskFilter | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const deadline = value.deadline;
+  const priority = value.priority;
+  const status = value.status;
+
+  if (
+    !isDeadlineFilter(deadline) ||
+    !isPriorityFilter(priority) ||
+    !isStatusFilter(status) ||
+    typeof value.id !== "string" ||
+    typeof value.label !== "string" ||
+    typeof value.query !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    custom: Boolean(value.custom),
+    deadline,
+    id: value.id,
+    label: value.label,
+    priority,
+    query: value.query,
+    status,
+  } satisfies SavedTaskFilter;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStatusFilter(value: unknown): value is TaskStatus | "All" {
+  return STATUS_FILTERS.some((status) => status === value);
+}
+
+function isPriorityFilter(value: unknown): value is PriorityFilter {
+  return PRIORITY_FILTERS.some((priority) => priority === value);
+}
+
+function isDeadlineFilter(value: unknown): value is DeadlineFilter {
+  return DEADLINE_FILTERS.some((filter) => filter.value === value);
+}
+
+function isSameTaskFilter(
+  left: TaskFilterSnapshot,
+  right: TaskFilterSnapshot,
+) {
+  return (
+    left.deadline === right.deadline &&
+    left.priority === right.priority &&
+    left.query.trim() === right.query.trim() &&
+    left.status === right.status
+  );
+}
+
+function isEmptyTaskFilter(filter: TaskFilterSnapshot) {
+  return (
+    filter.deadline === "all" &&
+    filter.priority === "All" &&
+    !filter.query.trim() &&
+    filter.status === "All"
+  );
+}
+
+function createSavedTaskFilterId() {
+  return `filter-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function buildSavedTaskFilterLabel(filter: TaskFilterSnapshot) {
+  const parts = getTaskFilterParts(filter);
+
+  return parts.length ? parts.join(" + ") : "Custom filter";
+}
+
+function describeSavedTaskFilter(filter: TaskFilterSnapshot) {
+  const parts = getTaskFilterParts(filter);
+
+  return parts.length ? parts.join(" / ") : "All tasks";
+}
+
+function getTaskFilterParts(filter: TaskFilterSnapshot) {
+  const parts: string[] = [];
+
+  if (filter.status !== "All") {
+    parts.push(filter.status);
+  }
+
+  if (filter.priority !== "All") {
+    parts.push(filter.priority);
+  }
+
+  if (filter.deadline !== "all") {
+    parts.push(getDeadlineFilterLabel(filter.deadline));
+  }
+
+  if (filter.query.trim()) {
+    parts.push(`"${filter.query.trim()}"`);
+  }
+
+  return parts;
+}
+
+function getDeadlineFilterLabel(deadline: DeadlineFilter) {
+  return (
+    DEADLINE_FILTERS.find((filter) => filter.value === deadline)?.label ??
+    deadline
+  );
 }
