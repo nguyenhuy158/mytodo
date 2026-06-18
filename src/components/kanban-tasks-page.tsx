@@ -4,6 +4,7 @@ import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 import {
+  applyTaskUpdate,
   formatTaskRowId,
   type SheetTask,
   type TaskPriority,
@@ -159,6 +160,13 @@ export function KanbanTasksPage() {
   ) => {
     setSavingRowNumber(input.rowNumber);
 
+    const previousData = data;
+    const optimisticData = applyTaskUpdate(previousData, input);
+
+    if (optimisticData) {
+      await mutate(optimisticData, { revalidate: false });
+    }
+
     const updatePromise = fetch(TASKS_API_URL, {
       method: "PATCH",
       headers: {
@@ -192,6 +200,12 @@ export function KanbanTasksPage() {
       const payload = await updatePromise;
 
       await mutate(payload, { revalidate: false });
+    } catch (updateError) {
+      if (previousData) {
+        await mutate(previousData, { revalidate: false });
+      }
+
+      throw updateError;
     } finally {
       setSavingRowNumber(null);
     }

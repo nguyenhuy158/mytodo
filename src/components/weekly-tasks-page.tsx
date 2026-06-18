@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import useSWR from "swr";
 import {
+  applyTaskUpdate,
   formatTaskRowId,
   type SheetTask,
   type TaskPriority,
@@ -22,6 +23,7 @@ import type {
 } from "@/lib/task-ai-types";
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
+import { TaskReportExportActions } from "@/components/task-report-export-actions";
 import { TaskTimelinePill } from "@/components/task-timeline";
 import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
@@ -165,6 +167,13 @@ export function WeeklyTasksPage() {
   const handleTaskUpdate = async (input: TaskUpdateInput) => {
     setSavingRowNumber(input.rowNumber);
 
+    const previousData = data;
+    const optimisticData = applyTaskUpdate(previousData, input);
+
+    if (optimisticData) {
+      await mutate(optimisticData, { revalidate: false });
+    }
+
     const updatePromise = fetch(TASKS_API_URL, {
       method: "PATCH",
       headers: {
@@ -197,6 +206,12 @@ export function WeeklyTasksPage() {
       const payload = await updatePromise;
 
       await mutate(payload, { revalidate: false });
+    } catch (updateError) {
+      if (previousData) {
+        await mutate(previousData, { revalidate: false });
+      }
+
+      throw updateError;
     } finally {
       setSavingRowNumber(null);
     }
@@ -272,6 +287,13 @@ export function WeeklyTasksPage() {
               </h2>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <TaskReportExportActions
+                periodEndISO={weekWindow.weekEndISO}
+                periodLabel={`${formatLongDate(weekWindow.weekStartISO)} - ${formatLongDate(weekWindow.weekEndISO)}`}
+                periodStartISO={weekWindow.weekStartISO}
+                scope="week"
+                tasks={weekTasks}
+              />
               <button
                 type="button"
                 onClick={handleWeekSummaryClick}

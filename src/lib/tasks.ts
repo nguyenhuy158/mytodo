@@ -243,6 +243,29 @@ export function formatTaskRowId(rowNumber: number) {
   return `R${rowNumber}`;
 }
 
+export function applyTaskUpdate(
+  payload: TasksPayload | undefined,
+  input: TaskUpdateInput,
+): TasksPayload | undefined {
+  if (!payload) {
+    return payload;
+  }
+
+  const updatedAt = new Date().toISOString();
+  const tasks = payload.tasks.map((task) =>
+    task.rowNumber === input.rowNumber ? applyTaskUpdateToTask(task, input) : task,
+  );
+
+  return {
+    ...payload,
+    tasks,
+    meta: {
+      ...payload.meta,
+      updatedAt,
+    },
+  };
+}
+
 export function normalizeStatus(value: string): TaskStatus {
   const normalized = value.trim().toLowerCase();
 
@@ -336,6 +359,75 @@ export function daysBetween(startISO: string, endISO: string) {
   const end = Date.parse(`${endISO}T00:00:00Z`);
 
   return Math.round((end - start) / 86_400_000);
+}
+
+function applyTaskUpdateToTask(
+  task: SheetTask,
+  input: TaskUpdateInput,
+): SheetTask {
+  const updates = input.updates;
+  const startDateISO =
+    updates.dateReceived === undefined
+      ? task.startDateISO
+      : parseSheetDate(updates.dateReceived);
+  const deadlineISO =
+    updates.deadline === undefined
+      ? task.deadlineISO
+      : parseSheetDate(updates.deadline);
+  const actualDateISO =
+    updates.actualDate === undefined
+      ? task.actualDateISO
+      : parseSheetDate(updates.actualDate);
+  const status = updates.status ?? task.status;
+  const timeline =
+    updates.timeline === undefined ? task.timeline : updates.timeline.trim();
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const daysLeft = deadlineISO ? daysBetween(todayISO, deadlineISO) : null;
+
+  return {
+    ...task,
+    tags: updates.tags === undefined ? task.tags : updates.tags.trim(),
+    system: updates.system === undefined ? task.system : updates.system.trim(),
+    task: updates.task === undefined ? task.task : updates.task.trim(),
+    details:
+      updates.details === undefined ? task.details : updates.details.trim(),
+    priority: updates.priority ?? task.priority,
+    status,
+    timeline,
+    timelineDays: parseTimelineDays(timeline),
+    dateReceived:
+      updates.dateReceived === undefined
+        ? task.dateReceived
+        : formatTaskDateDisplay(startDateISO, updates.dateReceived),
+    deadline:
+      updates.deadline === undefined
+        ? task.deadline
+        : formatTaskDateDisplay(deadlineISO, updates.deadline),
+    actualDate:
+      updates.actualDate === undefined
+        ? task.actualDate
+        : formatTaskDateDisplay(actualDateISO, updates.actualDate),
+    note: updates.note === undefined ? task.note : updates.note.trim(),
+    startDateISO,
+    deadlineISO,
+    actualDateISO,
+    daysLeft,
+    isOverdue: Boolean(deadlineISO && daysLeft !== null && daysLeft < 0 && status !== "Done"),
+  };
+}
+
+function formatTaskDateDisplay(valueISO: string | null, fallback: string) {
+  return valueISO ? formatISODateForDisplay(valueISO) : fallback.trim();
+}
+
+function formatISODateForDisplay(value: string) {
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${day}/${month}/${year}`;
 }
 
 function isValidDatePart(year: number, month: number, day: number) {

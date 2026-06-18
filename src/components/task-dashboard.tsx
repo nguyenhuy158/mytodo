@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import useSWR from "swr";
 import {
+  applyTaskUpdate,
   formatTaskRowId,
   type SheetTask,
   type TaskPriority,
@@ -36,6 +37,7 @@ import {
   formatTaskTimeline,
   TaskTimelinePill,
 } from "@/components/task-timeline";
+import { DatePickerField } from "@/components/date-picker-field";
 import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
 
@@ -361,6 +363,13 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
   const handleTaskUpdate = async (input: TaskUpdateInput) => {
     setSavingRowNumber(input.rowNumber);
 
+    const previousData = data;
+    const optimisticData = applyTaskUpdate(previousData, input);
+
+    if (optimisticData) {
+      await mutate(optimisticData, { revalidate: false });
+    }
+
     const updatePromise = fetch(TASKS_API_URL, {
       method: "PATCH",
       headers: {
@@ -393,6 +402,12 @@ export function TaskDashboard({ view = "overview" }: { view?: DashboardView }) {
       const payload = await updatePromise;
 
       await mutate(payload, { revalidate: false });
+    } catch (updateError) {
+      if (previousData) {
+        await mutate(previousData, { revalidate: false });
+      }
+
+      throw updateError;
     } finally {
       setSavingRowNumber(null);
     }
@@ -1265,10 +1280,10 @@ function TaskRow({
     onTaskSelect();
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    await onTaskUpdate({
+    const input = {
       rowNumber: task.rowNumber,
       updates: {
         status: draftStatus,
@@ -1276,9 +1291,12 @@ function TaskRow({
         actualDate: draftActualDate,
         note: draftNote,
       },
-    });
+    };
 
     setIsEditing(false);
+    void onTaskUpdate(input).catch(() => {
+      setIsEditing(true);
+    });
   };
 
   return (
@@ -1392,16 +1410,14 @@ function TaskRow({
                   ))}
                 </select>
               </label>
-              <label className="grid gap-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500 sm:col-span-2">
-                Actual Date
-                <input
-                  type="date"
-                  value={draftActualDate}
-                  onChange={(event) => setDraftActualDate(event.target.value)}
-                  disabled={isSaving}
-                  className="h-10 rounded-2xl border border-white bg-white px-3 text-sm font-bold normal-case tracking-normal text-slate-800 outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-60"
-                />
-              </label>
+              <DatePickerField
+                className="gap-1 sm:col-span-2"
+                disabled={isSaving}
+                inputClassName="h-10 px-3"
+                label="Actual Date"
+                value={draftActualDate}
+                onChange={setDraftActualDate}
+              />
             </div>
             <label className="mt-3 grid gap-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
               Note

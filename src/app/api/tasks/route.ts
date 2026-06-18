@@ -71,16 +71,18 @@ export async function PATCH(request: NextRequest) {
     const input = parseTaskUpdateInput(await readJson(request));
     const requestContext = getAuditRequestContext(request);
     const taskService = createTaskApplicationService();
-    const beforePayload = await taskService.listTasks({ forceRefresh: true });
+    const beforePayload = await taskService.listTasks();
     const beforeTask = beforePayload.tasks.find(
       (task) => task.rowNumber === input.rowNumber,
     );
-    const payload = await taskService.updateTask(input);
+    const payload = await taskService.updateTask(input, {
+      currentPayload: beforePayload,
+    });
     const afterTask = payload.tasks.find(
       (task) => task.rowNumber === input.rowNumber,
     );
 
-    await recordTaskHistory(() =>
+    void recordTaskHistory(() =>
       createTaskHistoryApplicationService().recordTaskUpdate({
         actorEmail: authResult.email,
         beforeTask,

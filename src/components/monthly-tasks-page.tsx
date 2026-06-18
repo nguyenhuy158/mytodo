@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import useSWR from "swr";
 import {
+  applyTaskUpdate,
   formatTaskRowId,
   type SheetTask,
   type TaskPriority,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/tasks";
 import { AppIcon } from "@/components/app-icon";
 import { TaskDetailDialog } from "@/components/task-detail-dialog";
+import { TaskReportExportActions } from "@/components/task-report-export-actions";
 import { TaskTimelinePill } from "@/components/task-timeline";
 import { usePersistedTaskSelection } from "@/components/use-persisted-task-selection";
 import { cn } from "@/lib/utils";
@@ -152,6 +154,13 @@ export function MonthlyTasksPage() {
   const handleTaskUpdate = async (input: TaskUpdateInput) => {
     setSavingRowNumber(input.rowNumber);
 
+    const previousData = data;
+    const optimisticData = applyTaskUpdate(previousData, input);
+
+    if (optimisticData) {
+      await mutate(optimisticData, { revalidate: false });
+    }
+
     const updatePromise = fetch(TASKS_API_URL, {
       method: "PATCH",
       headers: {
@@ -184,6 +193,12 @@ export function MonthlyTasksPage() {
       const payload = await updatePromise;
 
       await mutate(payload, { revalidate: false });
+    } catch (updateError) {
+      if (previousData) {
+        await mutate(previousData, { revalidate: false });
+      }
+
+      throw updateError;
     } finally {
       setSavingRowNumber(null);
     }
@@ -272,6 +287,13 @@ export function MonthlyTasksPage() {
                   ›
                 </button>
               </div>
+              <TaskReportExportActions
+                periodEndISO={monthWindow.endISO}
+                periodLabel={monthWindow.label}
+                periodStartISO={monthWindow.startISO}
+                scope="month"
+                tasks={filteredTasks}
+              />
               <label className="relative">
                 <AppIcon
                   name="search"
