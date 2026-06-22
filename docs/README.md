@@ -7,6 +7,7 @@ Tài liệu vận hành và phát triển cho `2026 To-do Cockpit`.
 - [Setup](./SETUP.md): cài dependencies, cấu hình `.env.local`, Google service account, chạy local.
 - [Architecture](./ARCHITECTURE.md): stack, routes, components, data flow, cache.
 - [Operations](./OPERATIONS.md): kiểm tra dữ liệu, force reload, troubleshooting, checklist trước khi giao.
+- [Google Sheet Events](./GOOGLE_SHEET_EVENTS.md): Apps Script webhook để refresh app khi Google Sheet đổi.
 
 ## Quick Start
 

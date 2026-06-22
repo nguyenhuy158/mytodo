@@ -9,6 +9,7 @@ Next.js dashboard đọc task từ Google Sheet private bằng Google Sheets API
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md): routes, components, data flow, cache.
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md): force reload, troubleshooting, checklist.
 - [docs/DEPLOY_DOKPLOY.md](./docs/DEPLOY_DOKPLOY.md): deploy bằng Dokploy.
+- [docs/GOOGLE_SHEET_EVENTS.md](./docs/GOOGLE_SHEET_EVENTS.md): Apps Script webhook để refresh app khi Google Sheet đổi.
 
 ## Cấu hình Google Sheet private
 
