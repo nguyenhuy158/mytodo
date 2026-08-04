@@ -9,10 +9,10 @@ services:
     env_file:
       - .env
     environment:
-      APP_BASE_URL: ${APP_BASE_URL:-https://task.huycode.click}
-      AUTH_URL: ${AUTH_URL:-https://task.huycode.click}
+      APP_BASE_URL: ${APP_BASE_URL:-https://task.huyab.click}
+      AUTH_URL: ${AUTH_URL:-https://task.huyab.click}
       HOSTNAME: 0.0.0.0
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://task.huycode.click}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://task.huyab.click}
       NODE_ENV: production
       PORT: 3000
       TASK_BACKUP_CRON_ENABLED: ${TASK_BACKUP_CRON_ENABLED:-true}

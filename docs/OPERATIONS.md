@@ -131,15 +131,15 @@ Likely causes:
 For production on Dokploy, these values must match the public site:
 
 ```env
-AUTH_URL=https://task.huycode.click
-NEXTAUTH_URL=https://task.huycode.click
-APP_BASE_URL=https://task.huycode.click
+AUTH_URL=https://task.huyab.click
+NEXTAUTH_URL=https://task.huyab.click
+APP_BASE_URL=https://task.huyab.click
 ```
 
 The Google OAuth authorized redirect URI must include:
 
 ```text
-https://task.huycode.click/api/auth/callback/google
+https://task.huyab.click/api/auth/callback/google
 ```
 
 For short-lived debugging, set `AUTH_DEBUG=true` and inspect server logs. Turn it
