@@ -31,9 +31,9 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 AUTH_ALLOWED_EMAILS=you@example.com,teammate@example.com
 AUTH_DEBUG=false
-AUTH_URL=https://task.huycode.click
-NEXTAUTH_URL=https://task.huycode.click
-APP_BASE_URL=https://task.huycode.click
+AUTH_URL=https://task.huyab.click
+NEXTAUTH_URL=https://task.huyab.click
+APP_BASE_URL=https://task.huyab.click
 TASK_BACKUP_DIR=/app/task-backups
 TASK_BACKUP_CRON_ENABLED=true
 TASK_BACKUP_CRON_INTERVAL_HOURS=12
@@ -56,7 +56,7 @@ GOOGLE_XLSX_SHEET_NAME=To-Do List
 7. In Google Cloud OAuth, add this callback URL:
 
 ```text
-https://task.huycode.click/api/auth/callback/google
+https://task.huyab.click/api/auth/callback/google
 ```
 
 8. Deploy.
